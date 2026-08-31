@@ -1,0 +1,61 @@
+name: woosh_rider_app
+description: "Woosh - Female-Only Ride Service Driver App"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # HTTP & Networking
+  dio: ^5.7.0
+
+  # Secure Storage (JWT tokens)
+  flutter_secure_storage: ^9.2.4
+
+  # Image picking & camera
+  image_picker: ^1.1.2
+
+  # Maps & Location
+  google_maps_flutter: ^2.9.0
+  geolocator: ^14.0.2
+
+  # Utilities
+  shared_preferences: ^2.3.5
+  intl: ^0.20.2
+  cached_network_image: ^3.4.1
+  percent_indicator: ^4.2.4
+  url_launcher: ^6.3.1
+  cupertino_icons: ^1.0.8
+  socket_io_client: ^3.1.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
