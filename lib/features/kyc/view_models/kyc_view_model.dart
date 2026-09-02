@@ -17,6 +17,7 @@ class KycState {
   final String? rejectionReason;
   final int currentStep; // 1-5
   final bool isSubmitting;
+  final List<UploadedDocument> serverDocuments;
 
   // Step 1 - Personal
   final String name;
@@ -55,6 +56,7 @@ class KycState {
     this.vehicleColor = '',
     this.uploadedDocuments = const {},
     this.selfiePath,
+    this.serverDocuments = const [],
     this.helmetAvailable = false,
     this.firstAidKitAvailable = false,
     this.sanitaryPadsAvailable = false,
@@ -66,7 +68,7 @@ class KycState {
     int? currentStep, bool? isSubmitting, String? name, String? city,
     String? dateOfBirth, String? vehicleNumber, String? vehicleModel,
     String? vehicleColor, Map<String, String>? uploadedDocuments,
-    String? selfiePath, bool? helmetAvailable, bool? firstAidKitAvailable,
+    String? selfiePath, List<UploadedDocument>? serverDocuments, bool? helmetAvailable, bool? firstAidKitAvailable,
     bool? sanitaryPadsAvailable, bool? phoneBatteryCheck,
   }) {
     return KycState(
@@ -84,6 +86,7 @@ class KycState {
       vehicleColor: vehicleColor ?? this.vehicleColor,
       uploadedDocuments: uploadedDocuments ?? this.uploadedDocuments,
       selfiePath: selfiePath ?? this.selfiePath,
+      serverDocuments: serverDocuments ?? this.serverDocuments,
       helmetAvailable: helmetAvailable ?? this.helmetAvailable,
       firstAidKitAvailable: firstAidKitAvailable ?? this.firstAidKitAvailable,
       sanitaryPadsAvailable: sanitaryPadsAvailable ?? this.sanitaryPadsAvailable,
@@ -93,7 +96,12 @@ class KycState {
 
   bool get allRequiredDocsUploaded {
     final required = ['aadhaar', 'driving_license', 'rc_book', 'vehicle_insurance', 'puc'];
-    return required.every((key) => uploadedDocuments.containsKey(key));
+    return required.every((key) {
+      final isLocal = uploadedDocuments.containsKey(key);
+      final serverDoc = serverDocuments.where((d) => d.type == key).firstOrNull;
+      final isServerValid = serverDoc != null && serverDoc.status != 'REJECTED';
+      return isLocal || isServerValid;
+    });
   }
 }
 
@@ -109,6 +117,7 @@ class KycViewModel extends StateNotifier<KycState> {
         isLoading: false,
         kycStatus: status.status,
         rejectionReason: status.rejectionReason,
+        serverDocuments: status.documents,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());

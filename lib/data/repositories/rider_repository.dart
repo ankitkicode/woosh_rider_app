@@ -106,4 +106,22 @@ class RiderRepository {
       throw ApiService.parseError(e);
     }
   }
+
+  /// Accept a ride request
+  Future<void> acceptRide(String rideId) async {
+    try {
+      await _api.put('/ride/$rideId/accept');
+    } on DioException catch (e) {
+      throw ApiService.parseError(e);
+    }
+  }
+
+  /// Reject a ride request
+  Future<void> rejectRide(String rideId) async {
+    try {
+      await _api.put('/ride/$rideId/reject');
+    } on DioException catch (e) {
+      throw ApiService.parseError(e);
+    }
+  }
 }

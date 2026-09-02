@@ -10,6 +10,8 @@ class DocumentUploadCard extends StatelessWidget {
   final String docKey; // e.g. 'aadhaar', 'driving_license'
   final bool isRequired;
   final String? uploadedFilePath;
+  final String? serverStatus; // PENDING, APPROVED, REJECTED
+  final String? rejectionReason;
   final VoidCallback onUpload;
 
   const DocumentUploadCard({
@@ -19,10 +21,17 @@ class DocumentUploadCard extends StatelessWidget {
     required this.docKey,
     required this.isRequired,
     required this.uploadedFilePath,
+    this.serverStatus,
+    this.rejectionReason,
     required this.onUpload,
   });
 
-  bool get isUploaded => uploadedFilePath != null;
+  bool get isUploadedLocally => uploadedFilePath != null;
+  bool get isApproved => serverStatus == 'APPROVED';
+  bool get isRejected => serverStatus == 'REJECTED';
+  bool get isPending => serverStatus == 'PENDING';
+  
+  bool get isComplete => isUploadedLocally || isApproved || isPending;
 
   @override
   Widget build(BuildContext context) {
@@ -32,8 +41,8 @@ class DocumentUploadCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isUploaded ? AppColors.successGreen : AppColors.borderLight,
-          width: isUploaded ? 1.5 : 1,
+          color: isRejected ? AppColors.errorRed : (isComplete ? AppColors.successGreen : AppColors.borderLight),
+          width: isComplete || isRejected ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
@@ -43,77 +52,113 @@ class DocumentUploadCard extends StatelessWidget {
           ),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: isUploaded ? AppColors.successGreen.withValues(alpha: 0.1) : AppColors.lightPink,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: isUploaded
-              ? const Icon(Icons.check_circle, color: AppColors.successGreen, size: 26)
-              : const Icon(Icons.upload_file, color: AppColors.primaryPink, size: 26),
-        ),
-        title: Row(
-          children: [
-            Expanded(
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: isRejected 
+                    ? AppColors.errorRed.withValues(alpha: 0.1) 
+                    : (isComplete ? AppColors.successGreen.withValues(alpha: 0.1) : AppColors.lightPink),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: isRejected
+                  ? const Icon(Icons.cancel, color: AppColors.errorRed, size: 26)
+                  : (isComplete
+                      ? const Icon(Icons.check_circle, color: AppColors.successGreen, size: 26)
+                      : const Icon(Icons.upload_file, color: AppColors.primaryPink, size: 26)),
+            ),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Poppins', color: AppColors.darkText),
+                  ),
+                ),
+                if (isRequired)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.errorRed.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('Required', style: TextStyle(fontSize: 10, color: AppColors.errorRed, fontWeight: FontWeight.w600, fontFamily: 'Poppins')),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.infoBlue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('Optional', style: TextStyle(fontSize: 10, color: AppColors.infoBlue, fontWeight: FontWeight.w600, fontFamily: 'Poppins')),
+                  ),
+              ],
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
               child: Text(
-                title,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Poppins', color: AppColors.darkText),
+                isRejected ? 'Rejected' : (isComplete ? '✓ Uploaded' : subtitle),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Poppins',
+                  color: isRejected ? AppColors.errorRed : (isComplete ? AppColors.successGreen : AppColors.lightGray),
+                ),
               ),
             ),
-            if (isRequired)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.errorRed.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Text('Required', style: TextStyle(fontSize: 10, color: AppColors.errorRed, fontWeight: FontWeight.w600, fontFamily: 'Poppins')),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.infoBlue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Text('Optional', style: TextStyle(fontSize: 10, color: AppColors.infoBlue, fontWeight: FontWeight.w600, fontFamily: 'Poppins')),
-              ),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            isUploaded ? '✓ Uploaded successfully' : subtitle,
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: 'Poppins',
-              color: isUploaded ? AppColors.successGreen : AppColors.lightGray,
-            ),
-          ),
-        ),
-        trailing: GestureDetector(
-          onTap: onUpload,
-          child: Container(
+            trailing: isApproved || (isPending && !isUploadedLocally)
+                ? null
+                : GestureDetector(
+                    onTap: onUpload,
+                    child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: isUploaded ? AppColors.successGreen.withValues(alpha: 0.1) : AppColors.primaryPink,
+              color: isUploadedLocally ? AppColors.successGreen.withValues(alpha: 0.1) : AppColors.primaryPink,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              isUploaded ? 'Change' : 'Upload',
+              isUploadedLocally || isRejected ? 'Change' : 'Upload',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 fontFamily: 'Poppins',
-                color: isUploaded ? AppColors.successGreen : Colors.white,
+                color: isUploadedLocally ? AppColors.successGreen : Colors.white,
               ),
             ),
           ),
         ),
+      ),
+          if (isRejected && rejectionReason != null && rejectionReason!.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.errorRed.withValues(alpha: 0.05),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(15),
+                  bottomRight: Radius.circular(15),
+                ),
+                border: const Border(top: BorderSide(color: AppColors.errorRed, width: 0.5)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline, color: AppColors.errorRed, size: 14),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      rejectionReason!,
+                      style: const TextStyle(fontSize: 11, color: AppColors.errorRed, fontFamily: 'Poppins'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

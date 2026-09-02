@@ -25,10 +25,10 @@ class AuthViewModel extends StateNotifier<AuthState> {
   final AuthRepository _repo;
   AuthViewModel(this._repo) : super(const AuthState());
 
-  Future<String?> sendOtp(String phoneNumber) async {
+  Future<String?> sendOtp(String phoneNumber, {String action = 'login'}) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      return await _repo.sendOtp(phoneNumber);
+      return await _repo.sendOtp(phoneNumber, action: action);
     } finally {
       state = state.copyWith(isLoading: false);
     }

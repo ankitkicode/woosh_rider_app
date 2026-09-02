@@ -33,7 +33,80 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
 
   Future<void> _initSocket() async {
     _riderId = await StorageService.getUserId();
-    SocketService().connect();
+    final socketService = SocketService();
+    socketService.connect();
+
+    // Small delay to ensure socket connects before joining
+    Future.delayed(const Duration(seconds: 1), () {
+      if (_riderId != null) {
+        socketService.joinRiderRoom(_riderId!);
+      }
+    });
+
+    socketService.onNewRideRequest((data) {
+      if (!mounted) return;
+      _showRideRequestPopup(data);
+    });
+  }
+
+  void _showRideRequestPopup(Map<String, dynamic> data) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('🚗 New Ride Request!', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: AppColors.primaryPink)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Pickup: ${data['pickup']['address'] ?? 'Nearby'}', style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
+              const SizedBox(height: 8),
+              Text('Drop: ${data['drop']['address'] ?? 'Destination'}', style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
+              const SizedBox(height: 12),
+              Text('Distance: ${data['distanceKm']} km', style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600)),
+              Text('Fare: ₹${data['fare']}', style: const TextStyle(fontFamily: 'Poppins', fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.successGreen)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _handleRideResponse(data['rideId'] as String, false);
+              },
+              child: const Text('Reject', style: TextStyle(color: AppColors.errorRed, fontFamily: 'Poppins')),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPink, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              onPressed: () {
+                Navigator.pop(context);
+                _handleRideResponse(data['rideId'] as String, true);
+              },
+              child: const Text('Accept', style: TextStyle(color: Colors.white, fontFamily: 'Poppins')),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _handleRideResponse(String rideId, bool accept) async {
+    try {
+      final repo = ref.read(riderRepositoryProvider);
+      if (accept) {
+        await repo.acceptRide(rideId);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ride Accepted!'), backgroundColor: AppColors.successGreen));
+        // TODO: Navigate to active ride view
+      } else {
+        await repo.rejectRide(rideId);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ride Rejected'), backgroundColor: AppColors.infoBlue));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.errorRed));
+      }
+    }
   }
 
   @override

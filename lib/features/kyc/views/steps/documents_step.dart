@@ -83,14 +83,20 @@ class DocumentsStep extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
 
-            ..._documents.map((doc) => DocumentUploadCard(
-              title: doc['title'] as String,
-              subtitle: doc['subtitle'] as String,
-              docKey: doc['key'] as String,
-              isRequired: doc['required'] as bool,
-              uploadedFilePath: state.uploadedDocuments[doc['key']],
-              onUpload: () => _handleUpload(context, ref, doc['key'] as String),
-            )),
+            ..._documents.map((doc) {
+              final docKey = doc['key'] as String;
+              final serverDoc = state.serverDocuments.where((d) => d.type == docKey).firstOrNull;
+              return DocumentUploadCard(
+                title: doc['title'] as String,
+                subtitle: doc['subtitle'] as String,
+                docKey: docKey,
+                isRequired: doc['required'] as bool,
+                uploadedFilePath: state.uploadedDocuments[docKey],
+                serverStatus: serverDoc?.status,
+                rejectionReason: serverDoc?.rejectionReason,
+                onUpload: () => _handleUpload(context, ref, docKey),
+              );
+            }),
 
             if (state.error != null) ...[
               const SizedBox(height: 8),

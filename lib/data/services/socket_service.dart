@@ -54,6 +54,23 @@ class SocketService {
     });
   }
 
+  void onNewRideRequest(Function(Map<String, dynamic>) callback) {
+    if (socket == null) return;
+    socket!.on('new_ride_request', (data) {
+      callback(data as Map<String, dynamic>);
+    });
+  }
+
+  void offNewRideRequest() {
+    if (socket == null) return;
+    socket!.off('new_ride_request');
+  }
+
+  void joinRiderRoom(String riderId) {
+    if (socket == null || !socket!.connected) return;
+    socket!.emit('rider:join_room', {'riderId': riderId});
+  }
+
   void disconnect() {
     socket?.disconnect();
   }

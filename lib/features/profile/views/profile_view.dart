@@ -152,11 +152,14 @@ class ProfileView extends ConsumerWidget {
   }
 
   Widget _buildMenuItem(IconData icon, String title, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon, color: AppColors.darkText, size: 22),
-      title: Text(title, style: const TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.darkText)),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.lightGray),
-      onTap: onTap,
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        leading: Icon(icon, color: AppColors.darkText, size: 22),
+        title: Text(title, style: const TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.darkText)),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.lightGray),
+        onTap: onTap,
+      ),
     );
   }
 }

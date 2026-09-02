@@ -75,7 +75,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
     setState(() { _isSendingOtp = true; _phoneError = null; });
     try {
       final notifier = ref.read(authViewModelProvider.notifier);
-      final otp = await notifier.sendOtp(phone);
+      final otp = await notifier.sendOtp(phone, action: 'register');
       _verifiedPhone = phone;
       _receivedOtp = (otp != null && otp.isNotEmpty) ? otp : null;
       setState(() { _currentStep = 1; _resendTimer = 30; });
@@ -118,7 +118,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
     setState(() => _resendTimer = 30);
     try {
       final notifier = ref.read(authViewModelProvider.notifier);
-      final otp = await notifier.sendOtp(_verifiedPhone);
+      final otp = await notifier.sendOtp(_verifiedPhone, action: 'register');
       _receivedOtp = (otp != null && otp.isNotEmpty) ? otp : null;
       _startResendTimer();
       _showOtpToast();

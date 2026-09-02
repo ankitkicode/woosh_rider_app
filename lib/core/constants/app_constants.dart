@@ -2,6 +2,7 @@ class AppConstants {
   static const String appName = 'Woosh Driver';
   
   // Use 10.0.2.2 for Android Emulator to connect to localhost
+  // static const String baseUrl = 'http://10.0.2.2:5001/api/v1'; 
   static const String baseUrl = 'https://wooshride.in/api/v1'; 
   
   // Use your Mac's IP (like 10.169.140.20) ONLY if testing on a PHYSICAL device

@@ -67,19 +67,22 @@ class KycStatusModel {
 class UploadedDocument {
   final String type;
   final String url;
-  final bool isVerified;
+  final String status;
+  final String? rejectionReason;
 
   UploadedDocument({
     required this.type,
     required this.url,
-    required this.isVerified,
+    required this.status,
+    this.rejectionReason,
   });
 
   factory UploadedDocument.fromJson(Map<String, dynamic> json) {
     return UploadedDocument(
       type: json['type']?.toString() ?? '',
       url: json['url']?.toString() ?? '',
-      isVerified: json['isVerified'] as bool? ?? false,
+      status: json['status']?.toString() ?? 'PENDING',
+      rejectionReason: json['rejectionReason']?.toString(),
     );
   }
 }

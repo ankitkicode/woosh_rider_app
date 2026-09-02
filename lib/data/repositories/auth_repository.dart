@@ -8,11 +8,15 @@ class AuthRepository {
   AuthRepository(this._api);
 
   /// Step 1: Send OTP via WhatsApp
-  Future<String> sendOtp(String phoneNumber) async {
+  Future<String> sendOtp(String phoneNumber, {String action = 'login'}) async {
     try {
       final response = await _api.post(
         '/auth/send-otp',
-        data: {'phoneNumber': phoneNumber},
+        data: {
+          'phoneNumber': phoneNumber,
+          'role': 'rider',
+          'action': action,
+        },
       );
       final data = ApiService.parseData(response);
       return data['otp']?.toString() ?? '';
