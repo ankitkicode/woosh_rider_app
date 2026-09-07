@@ -51,7 +51,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
       _receivedOtp = (otp != null && otp.isNotEmpty) ? otp : null;
       setState(() { _isPhoneStep = false; _resendTimer = 30; });
       _startResendTimer();
-      _showOtpToast();
+      // _showOtpToast();
     } catch (e) {
       setState(() => _errorText = e.toString());
     } finally {
@@ -59,7 +59,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
     }
   }
 
-  void _showOtpToast() {
+/*  void _showOtpToast() {
     if (_receivedOtp != null && _receivedOtp!.isNotEmpty && mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -73,7 +73,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
         ),
       );
     }
-  }
+  }*/
 
   void _startResendTimer() {
     Future.delayed(const Duration(seconds: 1), _countdown);
@@ -92,7 +92,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
       final otp = await notifier.sendOtp(_phone);
       _receivedOtp = (otp != null && otp.isNotEmpty) ? otp : null;
       _startResendTimer();
-      _showOtpToast();
+      // _showOtpToast();
     } catch (e) {
       setState(() => _errorText = e.toString());
     }
@@ -171,18 +171,23 @@ class _LoginViewState extends ConsumerState<LoginView> {
         // Logo
         Center(
           child: Column(children: [
-            Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(
-                gradient: AppColors.brandGradient,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [BoxShadow(color: AppColors.primaryPink.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))],
+            SizedBox(
+              height: 90,
+              child: Image.asset(
+                'assets/images/woosh_rider_logo.png',
+                fit: BoxFit.contain,
               ),
-              child: const Icon(Icons.electric_bike, color: Colors.white, size: 44),
             ),
-            const SizedBox(height: 16),
-            const Text('Woosh', style: TextStyle(fontFamily: 'Poppins', fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.primaryPink)),
-            const Text('Driver Portal', style: TextStyle(fontFamily: 'Poppins', fontSize: 14, color: AppColors.lightGray)),
+            const SizedBox(height: 8),
+            const Text(
+              'Driver Portal',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                color: AppColors.lightGray,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ]),
         ),
 

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/config/app_routes.dart';
 import 'core/theme/app_theme.dart';
+import 'data/services/location_foreground_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  LocationForegroundService.init();
   runApp(
     const ProviderScope(
       child: WooshDriverApp(),
@@ -18,7 +20,7 @@ class WooshDriverApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
-      title: 'Woosh Driver',
+      title: 'Woosh Queens',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routerConfig: AppRoutes.router,

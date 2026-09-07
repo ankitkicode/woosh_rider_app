@@ -1,9 +1,9 @@
 class AppConstants {
-  static const String appName = 'Woosh Driver';
+  static const String appName = 'Woosh Queens';
   
   // Use 10.0.2.2 for Android Emulator to connect to localhost
-  // static const String baseUrl = 'http://10.0.2.2:5001/api/v1'; 
-  static const String baseUrl = 'https://wooshride.in/api/v1'; 
+  static const String baseUrl = 'http://192.168.1.8:5001/api/v1'; 
+  // static const String baseUrl = 'https://wooshride.in/api/v1'; 
   
   // Use your Mac's IP (like 10.169.140.20) ONLY if testing on a PHYSICAL device
   // static const String baseUrl = 'http://10.169.140.20:5001/api/v1';
@@ -17,7 +17,7 @@ class AppConstants {
   static const int totalKycSteps = 5;
   
   // Timeouts
-  static const int connectTimeout = 30; // seconds
+  static const int connectTimeout = 30;
   static const int receiveTimeout = 30;
   
   // Ride request

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Woosh Rider App</string>
+	<string>Woosh Queens</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>woosh_rider_app</string>
+	<string>Woosh Queens</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -45,5 +45,26 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Woosh Queens needs your location to find nearby rides and show your position on the map.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Woosh Queens uses your location in the background to track active rides and update your position.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Woosh Queens uses your location in the background to track active rides and update your position.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Woosh Queens needs camera access to capture documents for KYC verification.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Woosh Queens needs photo library access to upload documents for KYC verification.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Woosh Queens needs access to save photos to your library.</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.pravera.flutter_foreground_task.refresh</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>location</string>
+	</array>
 </dict>
 </plist>

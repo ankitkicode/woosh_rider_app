@@ -1,6 +1,7 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter/foundation.dart';
 import 'dart:io';
+import '../../core/constants/app_constants.dart';
 
 class SocketService {
   static final SocketService _instance = SocketService._internal();
@@ -11,7 +12,7 @@ class SocketService {
 
   // Use the same URL base as ApiService
   String get _socketUrl {
-    return 'https://wooshride.in';
+    return AppConstants.baseUrl.replaceAll('/api/v1', '');
   }
 
   void connect() {

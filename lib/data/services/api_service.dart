@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:dio_http_formatter/dio_http_formatter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/constants/app_constants.dart';
 
@@ -17,6 +19,20 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
       ),
     );
+
+    // HTTP logger — only active in debug builds
+    if (kDebugMode) {
+      _dio.interceptors.add(
+        HttpFormatter(
+          includeRequest: true,
+          includeRequestHeaders: true,
+          includeRequestBody: true,
+          includeResponse: true,
+          includeResponseHeaders: true,
+          includeResponseBody: true,
+        ),
+      );
+    }
 
     // Request interceptor - attach JWT token
     _dio.interceptors.add(

@@ -65,7 +65,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
 
   String get _otp => _otpControllers.map((c) => c.text).join();
 
-  // ─── Step 1: Send OTP ───────────────────────────────────────────────
+
   Future<void> _sendOtp() async {
     final phone = _phoneController.text.trim();
     if (phone.length != 10) {
@@ -127,7 +127,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
     }
   }
 
-  // ─── Step 2: Verify OTP ─────────────────────────────────────────────
+
   Future<void> _verifyOtp() async {
     if (_otp.length != 6) {
       setState(() => _otpError = 'Please enter the complete 6-digit OTP');
@@ -163,7 +163,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
     }
   }
 
-  // ─── Step 3: Register ───────────────────────────────────────────────
+
   bool _validateDetails() {
     final errors = <String, String>{};
     if (_nameController.text.trim().length < 3) errors['name'] = 'Please enter your full name';
@@ -207,7 +207,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
         child: SafeArea(
           child: Column(
             children: [
-              // ─── Top bar with back + step indicator ─────────────────
+
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
@@ -228,7 +228,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
                 ),
               ),
 
-              // ─── Content ────────────────────────────────────────────
+
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -249,7 +249,6 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
     );
   }
 
-  // ─── Step Indicator ─────────────────────────────────────────────────
   Widget _buildStepIndicator() {
     final steps = ['Phone', 'Verify', 'Details'];
     return Row(
@@ -287,7 +286,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
     );
   }
 
-  // ─── Step 1: Phone Number ───────────────────────────────────────────
+
   Widget _buildPhoneStep() {
     return Column(
       key: const ValueKey('phone_step'),
@@ -308,7 +307,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
               child: const Icon(Icons.electric_bike, color: Colors.white, size: 40),
             ),
             const SizedBox(height: 12),
-            const Text('Woosh Driver', style: TextStyle(fontFamily: 'Poppins', fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.primaryPink)),
+            const Text('Woosh Queens', style: TextStyle(fontFamily: 'Poppins', fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.primaryPink)),
             const SizedBox(height: 2),
             const Text('Register as a Driver', style: TextStyle(fontFamily: 'Poppins', fontSize: 13, color: AppColors.lightGray)),
           ]),
@@ -382,7 +381,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
     );
   }
 
-  // ─── Step 2: OTP Verification ───────────────────────────────────────
+
   Widget _buildOtpStep() {
     return Column(
       key: const ValueKey('otp_step'),
@@ -486,7 +485,7 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
     );
   }
 
-  // ─── Step 3: Personal Details ───────────────────────────────────────
+
   Widget _buildDetailsStep() {
     return Column(
       key: const ValueKey('details_step'),

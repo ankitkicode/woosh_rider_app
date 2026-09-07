@@ -1,4 +1,4 @@
-package com.example.woosh_rider_app
+package com.woosh.ride
 
 import io.flutter.embedding.android.FlutterActivity
 

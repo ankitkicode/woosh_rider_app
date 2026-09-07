@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:geolocator/geolocator.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_text_styles.dart';
 import '../../kyc/view_models/kyc_view_model.dart';
 import '../../../data/services/socket_service.dart';
 import '../../../data/services/storage_service.dart';
-import 'dart:async';
+import '../../../data/services/location_foreground_service.dart';
 
 final isOnlineProvider = StateProvider<bool>((ref) => false);
 
@@ -21,7 +20,6 @@ class DriverHomeView extends ConsumerStatefulWidget {
 class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
   Map<String, dynamic>? _earnings;
   bool _loadingEarnings = false;
-  StreamSubscription<Position>? _positionStream;
   String? _riderId;
 
   @override
@@ -96,11 +94,15 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
       final repo = ref.read(riderRepositoryProvider);
       if (accept) {
         await repo.acceptRide(rideId);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ride Accepted!'), backgroundColor: AppColors.successGreen));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ride Accepted!'), backgroundColor: AppColors.successGreen));
+        }
         // TODO: Navigate to active ride view
       } else {
         await repo.rejectRide(rideId);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ride Rejected'), backgroundColor: AppColors.infoBlue));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ride Rejected'), backgroundColor: AppColors.infoBlue));
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -111,7 +113,6 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
 
   @override
   void dispose() {
-    _positionStream?.cancel();
     super.dispose();
   }
 
@@ -141,43 +142,36 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
       final newStatus = !current;
       await repo.toggleOnlineStatus(isOnline: newStatus);
       ref.read(isOnlineProvider.notifier).state = newStatus;
-      
+
       if (_riderId != null) {
         SocketService().emitStatusChanged(_riderId!, newStatus);
       }
 
       if (newStatus) {
-        _startLocationTracking();
+        if (_riderId != null) {
+          final started = await LocationForegroundService.start(_riderId!);
+          if (!started && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Location permission is required to go online.'),
+                backgroundColor: AppColors.errorRed,
+              ),
+            );
+            // Revert online status since location is unavailable
+            await repo.toggleOnlineStatus(isOnline: false);
+            if (mounted) {
+              ref.read(isOnlineProvider.notifier).state = false;
+            }
+          }
+        }
       } else {
-        _positionStream?.cancel();
+        await LocationForegroundService.stop();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.errorRed));
       }
     }
-  }
-
-  void _startLocationTracking() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
-    }
-
-    _positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // emit every 10 meters
-      ),
-    ).listen((Position position) {
-      if (_riderId != null) {
-        SocketService().emitLocationUpdate(_riderId!, position.latitude, position.longitude);
-      }
-    });
   }
 
   @override
@@ -215,7 +209,12 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
                 ),
               ),
               const Spacer(),
-              const Text('Woosh', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w800, fontSize: 20, color: AppColors.primaryPink)),
+              Image.asset(
+                'assets/images/woosh_rider_logo.png',
+                // height: 30,
+                width: 80,
+                fit: BoxFit.contain,
+              ),
               const Spacer(),
               GestureDetector(
                 onTap: () => context.push('/profile'),
