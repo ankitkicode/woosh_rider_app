@@ -2,6 +2,7 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 import '../../core/constants/app_constants.dart';
+import 'storage_service.dart';
 
 class SocketService {
   static final SocketService _instance = SocketService._internal();
@@ -26,8 +27,12 @@ class SocketService {
 
     socket!.connect();
 
-    socket!.onConnect((_) {
+    socket!.onConnect((_) async {
       print('[Socket] Connected to backend');
+      final riderId = await StorageService.getUserId();
+      if (riderId != null) {
+        joinRiderRoom(riderId);
+      }
     });
 
     socket!.onDisconnect((_) {

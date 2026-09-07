@@ -27,6 +27,9 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
     super.initState();
     _loadEarnings();
     _initSocket();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(kycViewModelProvider.notifier).loadStatus();
+    });
   }
 
   Future<void> _initSocket() async {
@@ -234,7 +237,7 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
               child: Column(children: [
 
                 // KYC warning if not approved
-                if (!isKycApproved)
+                if (kycState.kycStatus != null && !isKycApproved)
                   Container(
                     padding: const EdgeInsets.all(16),
                     margin: const EdgeInsets.only(bottom: 20),
@@ -302,7 +305,7 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
                       ),
                     ),
 
-                    if (!isKycApproved) ...[
+                    if (kycState.kycStatus != null && !isKycApproved) ...[
                       const SizedBox(height: 12),
                       Text('KYC approval required', style: TextStyle(fontFamily: 'Poppins', fontSize: 11, color: AppColors.warningAmber.withValues(alpha: 0.8))),
                     ],
@@ -311,7 +314,51 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
 
                 const SizedBox(height: 24),
 
-                // Today's stats
+                // Daily Safety Checklist Button
+                if (isKycApproved && !isOnline)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 24),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: kycState.isChecklistUpdatedToday
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            decoration: BoxDecoration(
+                              color: AppColors.successGreen.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.successGreen),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.check_circle, color: AppColors.successGreen),
+                                SizedBox(width: 8),
+                                Text(
+                                  "Today's Safety Checklist Done",
+                                  style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.successGreen),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: AppColors.primaryPink,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: const BorderSide(color: AppColors.primaryPink),
+                              ),
+                            ),
+                            icon: const Icon(Icons.checklist_rtl),
+                            label: const Text(
+                              'Update Daily Safety Checklist',
+                              style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, fontSize: 15),
+                            ),
+                            onPressed: () => _showDailyChecklistDialog(context, ref),
+                          ),
+                  ),                // Today's stats
                 Row(children: [
                   Expanded(
                     child: _StatCard(
@@ -390,6 +437,169 @@ class _StatCard extends StatelessWidget {
         const SizedBox(height: 4),
         Text(title, style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.lightGray)),
       ]),
+    );
+  }
+}
+
+void _showDailyChecklistDialog(BuildContext context, WidgetRef ref) {
+  showDialog(
+    context: context,
+    builder: (context) => const _DailyChecklistDialog(),
+  );
+}
+
+class _DailyChecklistDialog extends ConsumerStatefulWidget {
+  const _DailyChecklistDialog();
+
+  @override
+  ConsumerState<_DailyChecklistDialog> createState() => _DailyChecklistDialogState();
+}
+
+class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
+  bool helmet = false;
+  bool firstAid = false;
+  bool sanitary = false;
+  bool battery = false;
+  bool _isLoading = false;
+
+  Future<void> _submit() async {
+    if (!helmet || !firstAid || !sanitary || !battery) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please check all safety items to proceed.'), backgroundColor: AppColors.errorRed),
+      );
+      return;
+    }
+    
+    setState(() => _isLoading = true);
+    try {
+      final repo = ref.read(riderRepositoryProvider);
+      await repo.submitSafetyChecklist(
+        helmetAvailable: helmet,
+        firstAidKitAvailable: firstAid,
+        sanitaryPadsAvailable: sanitary,
+        phoneBatteryCheck: battery,
+        faceVerified: true,
+      );
+      if (mounted) {
+        // Refresh status so the UI knows it's checked for today
+        ref.read(kycViewModelProvider.notifier).loadStatus();
+        
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Safety checklist updated!'), backgroundColor: AppColors.successGreen),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.errorRed),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: const Color(0xFFFCEEED), // Light pinkish background matching screenshot
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.85,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Daily Safety\nChecklist',
+              style: TextStyle(
+                fontFamily: 'Poppins', 
+                fontSize: 28, 
+                fontWeight: FontWeight.w800, 
+                height: 1.2,
+                color: AppColors.primaryPink,
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildChecklistItem(
+              title: '⛑️ Helmet Available',
+              value: helmet,
+              onChanged: (v) => setState(() => helmet = v ?? false),
+            ),
+            const SizedBox(height: 12),
+            _buildChecklistItem(
+              title: '🩺 First Aid Kit',
+              value: firstAid,
+              onChanged: (v) => setState(() => firstAid = v ?? false),
+            ),
+            const SizedBox(height: 12),
+            _buildChecklistItem(
+              title: '🩸 Sanitary Pads',
+              value: sanitary,
+              onChanged: (v) => setState(() => sanitary = v ?? false),
+            ),
+            const SizedBox(height: 12),
+            _buildChecklistItem(
+              title: '🔋 Phone Battery Check',
+              value: battery,
+              onChanged: (v) => setState(() => battery = v ?? false),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _isLoading ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(fontFamily: 'Poppins', color: Colors.black54, fontSize: 15)),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryPink,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _isLoading ? null : _submit,
+                    child: _isLoading 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Submit', style: TextStyle(fontFamily: 'Poppins', color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChecklistItem({required String title, required bool value, required ValueChanged<bool?> onChanged}) {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        unselectedWidgetColor: Colors.black54,
+      ),
+      child: CheckboxListTile(
+        contentPadding: EdgeInsets.zero,
+        visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+        controlAffinity: ListTileControlAffinity.trailing,
+        activeColor: AppColors.primaryPink,
+        checkColor: Colors.white,
+        title: Text(
+          title,
+          style: const TextStyle(fontFamily: 'Poppins', fontSize: 15, color: Colors.black87),
+        ),
+        value: value,
+        onChanged: onChanged,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        side: const BorderSide(color: Colors.black54, width: 1.5),
+      ),
     );
   }
 }

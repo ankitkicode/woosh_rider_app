@@ -40,6 +40,7 @@ class KycState {
   final bool firstAidKitAvailable;
   final bool sanitaryPadsAvailable;
   final bool phoneBatteryCheck;
+  final bool isChecklistUpdatedToday;
 
   const KycState({
     this.isLoading = false,
@@ -61,6 +62,7 @@ class KycState {
     this.firstAidKitAvailable = false,
     this.sanitaryPadsAvailable = false,
     this.phoneBatteryCheck = false,
+    this.isChecklistUpdatedToday = false,
   });
 
   KycState copyWith({
@@ -69,7 +71,7 @@ class KycState {
     String? dateOfBirth, String? vehicleNumber, String? vehicleModel,
     String? vehicleColor, Map<String, String>? uploadedDocuments,
     String? selfiePath, List<UploadedDocument>? serverDocuments, bool? helmetAvailable, bool? firstAidKitAvailable,
-    bool? sanitaryPadsAvailable, bool? phoneBatteryCheck,
+    bool? sanitaryPadsAvailable, bool? phoneBatteryCheck, bool? isChecklistUpdatedToday,
   }) {
     return KycState(
       isLoading: isLoading ?? this.isLoading,
@@ -91,6 +93,7 @@ class KycState {
       firstAidKitAvailable: firstAidKitAvailable ?? this.firstAidKitAvailable,
       sanitaryPadsAvailable: sanitaryPadsAvailable ?? this.sanitaryPadsAvailable,
       phoneBatteryCheck: phoneBatteryCheck ?? this.phoneBatteryCheck,
+      isChecklistUpdatedToday: isChecklistUpdatedToday ?? this.isChecklistUpdatedToday,
     );
   }
 
@@ -118,6 +121,7 @@ class KycViewModel extends StateNotifier<KycState> {
         kycStatus: status.status,
         rejectionReason: status.rejectionReason,
         serverDocuments: status.documents,
+        isChecklistUpdatedToday: status.isChecklistUpdatedToday,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());

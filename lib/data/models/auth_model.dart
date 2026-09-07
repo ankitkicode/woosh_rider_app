@@ -34,6 +34,7 @@ class KycStatusModel {
   final bool hasProfile;
   final String? vehicleNumber;
   final List<UploadedDocument> documents;
+  final DateTime? checklistCheckedAt;
 
   KycStatusModel({
     required this.status,
@@ -41,11 +42,20 @@ class KycStatusModel {
     required this.hasProfile,
     this.vehicleNumber,
     this.documents = const [],
+    this.checklistCheckedAt,
   });
 
   bool get isApproved => status == 'approved';
   bool get isRejected => status == 'rejected';
   bool get isPending => status == 'pending' || status == 'under_review';
+  
+  bool get isChecklistUpdatedToday {
+    if (checklistCheckedAt == null) return false;
+    final now = DateTime.now();
+    return checklistCheckedAt!.year == now.year && 
+           checklistCheckedAt!.month == now.month && 
+           checklistCheckedAt!.day == now.day;
+  }
 
   factory KycStatusModel.fromJson(Map<String, dynamic> json) {
     // Backend might return the profile directly in the data object, or wrapped in a 'profile' key
@@ -56,6 +66,9 @@ class KycStatusModel {
       rejectionReason: profile['kycRejectionReason']?.toString(),
       hasProfile: profile.isNotEmpty,
       vehicleNumber: profile['vehicleNumber']?.toString(),
+      checklistCheckedAt: profile['safetyChecklist']?['checkedAt'] != null 
+          ? DateTime.tryParse(profile['safetyChecklist']['checkedAt'].toString()) 
+          : null,
       documents: (profile['documents'] as List<dynamic>?)
               ?.map((d) => UploadedDocument.fromJson(d as Map<String, dynamic>))
               .toList() ??

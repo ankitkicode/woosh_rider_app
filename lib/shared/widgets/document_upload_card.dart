@@ -202,8 +202,9 @@ Future<String?> pickImage({bool fromCamera = false}) async {
   final picker = ImagePicker();
   final picked = await picker.pickImage(
     source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-    imageQuality: 85,
-    maxWidth: 1200,
+    imageQuality: 50,
+    maxWidth: 800,
+    maxHeight: 800,
   );
   return picked?.path;
 }
