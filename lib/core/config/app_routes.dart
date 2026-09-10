@@ -9,6 +9,7 @@ import '../../core/layouts/main_layout.dart';
 import '../../features/earnings/views/earnings_view.dart';
 import '../../features/history/views/ride_history_view.dart';
 import '../../features/profile/views/profile_view.dart';
+import '../../features/ride/views/active_ride_view.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -26,6 +27,15 @@ class AppRoutes {
       // KYC
       GoRoute(path: '/kyc', builder: (_, _) => const KycView()),
       GoRoute(path: '/kyc/pending', builder: (_, _) => const KycPendingView()),
+
+      // Active Ride
+      GoRoute(
+        path: '/ride-active/:rideId',
+        builder: (context, state) {
+          final rideId = state.pathParameters['rideId']!;
+          return ActiveRideView(rideId: rideId);
+        },
+      ),
 
       // Home & Main Navigation
       StatefulShellRoute.indexedStack(

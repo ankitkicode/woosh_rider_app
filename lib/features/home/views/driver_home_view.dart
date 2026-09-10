@@ -7,6 +7,7 @@ import '../../kyc/view_models/kyc_view_model.dart';
 import '../../../data/services/socket_service.dart';
 import '../../../data/services/storage_service.dart';
 import '../../../data/services/location_foreground_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 final isOnlineProvider = StateProvider<bool>((ref) => false);
 
@@ -99,8 +100,8 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
         await repo.acceptRide(rideId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ride Accepted!'), backgroundColor: AppColors.successGreen));
+          context.push('/ride-active/$rideId');
         }
-        // TODO: Navigate to active ride view
       } else {
         await repo.rejectRide(rideId);
         if (mounted) {
@@ -146,7 +147,7 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
       await repo.toggleOnlineStatus(isOnline: newStatus);
       ref.read(isOnlineProvider.notifier).state = newStatus;
 
-      if (_riderId != null) {
+      if (!newStatus) {
         SocketService().emitStatusChanged(_riderId!, newStatus);
       }
 
@@ -165,6 +166,17 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
             if (mounted) {
               ref.read(isOnlineProvider.notifier).state = false;
             }
+          } else {
+            // Emitting status changed with location since it started successfully
+            final position = await Geolocator.getCurrentPosition(
+              locationSettings: LocationSettings(accuracy: LocationAccuracy.high),
+            );
+            SocketService().emitStatusChanged(
+              _riderId!, 
+              newStatus, 
+              lat: position.latitude, 
+              lng: position.longitude,
+            );
           }
         }
       } else {
@@ -363,7 +375,7 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
                   Expanded(
                     child: _StatCard(
                       title: "Today's Rides",
-                      value: _loadingEarnings ? '—' : '${_earnings?['todayRides'] ?? 0}',
+                      value: _loadingEarnings ? '—' : '${_earnings?['summary']?['todayRides'] ?? 0}',
                       icon: Icons.electric_bike,
                       color: AppColors.infoBlue,
                     ),
@@ -372,7 +384,7 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
                   Expanded(
                     child: _StatCard(
                       title: "Today's Earnings",
-                      value: _loadingEarnings ? '—' : '₹${_earnings?['todayEarnings'] ?? 0}',
+                      value: _loadingEarnings ? '—' : '₹${_earnings?['summary']?['todayEarnings'] ?? 0}',
                       icon: Icons.currency_rupee,
                       color: AppColors.successGreen,
                     ),
@@ -385,7 +397,7 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
                   Expanded(
                     child: _StatCard(
                       title: 'Total Rides',
-                      value: _loadingEarnings ? '—' : '${_earnings?['totalRides'] ?? 0}',
+                      value: _loadingEarnings ? '—' : '${_earnings?['summary']?['totalRides'] ?? 0}',
                       icon: Icons.history,
                       color: AppColors.secondaryPurple,
                     ),
@@ -394,7 +406,7 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
                   Expanded(
                     child: _StatCard(
                       title: 'Total Earnings',
-                      value: _loadingEarnings ? '—' : '₹${_earnings?['totalEarnings'] ?? 0}',
+                      value: _loadingEarnings ? '—' : '₹${_earnings?['summary']?['totalEarnings'] ?? 0}',
                       icon: Icons.account_balance_wallet_outlined,
                       color: AppColors.primaryPink,
                     ),

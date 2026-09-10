@@ -124,4 +124,52 @@ class RiderRepository {
       throw ApiService.parseError(e);
     }
   }
+
+  /// Get details of a ride
+  Future<Map<String, dynamic>> getRideDetails(String rideId) async {
+    try {
+      final response = await _api.get('/ride/$rideId');
+      return ApiService.parseData(response) as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiService.parseError(e);
+    }
+  }
+
+  /// Mark rider as arrived at pickup
+  Future<void> markArrived(String rideId) async {
+    try {
+      await _api.put('/ride/$rideId/arrived');
+    } on DioException catch (e) {
+      throw ApiService.parseError(e);
+    }
+  }
+
+  /// Start the ride with OTP
+  Future<Map<String, dynamic>> startRide(String rideId, String otp) async {
+    try {
+      final response = await _api.put('/ride/$rideId/start', data: {'otp': otp});
+      return ApiService.parseData(response) as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiService.parseError(e);
+    }
+  }
+
+  /// Complete the ride
+  Future<Map<String, dynamic>> completeRide(String rideId) async {
+    try {
+      final response = await _api.put('/ride/$rideId/complete');
+      return ApiService.parseData(response) as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiService.parseError(e);
+    }
+  }
+
+  /// Confirm cash collected
+  Future<void> confirmCashPayment(String rideId) async {
+    try {
+      await _api.put('/ride/$rideId/confirm-payment');
+    } on DioException catch (e) {
+      throw ApiService.parseError(e);
+    }
+  }
 }

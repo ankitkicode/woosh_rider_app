@@ -27,9 +27,10 @@ class EarningsView extends ConsumerWidget {
   }
 
   Widget _buildEarningsContent(BuildContext context, WidgetRef ref, Map<String, dynamic>? data) {
-    final balance = data?['walletBalance'] ?? 0;
-    final totalEarnings = data?['totalEarnings'] ?? 0;
-    final todayEarnings = data?['todayEarnings'] ?? 0;
+    final balance = data?['summary']?['walletBalance'] ?? 0;
+    final totalEarnings = data?['summary']?['totalEarnings'] ?? 0;
+    final todayEarnings = data?['summary']?['todayEarnings'] ?? 0;
+    final monthlyEarnings = data?['summary']?['monthlyEarnings'] ?? 0;
     final transactions = (data?['recentTransactions'] as List<dynamic>?) ?? [];
 
     return RefreshIndicator(
@@ -113,9 +114,28 @@ class EarningsView extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Total Earnings', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.lightGray)),
+                      const Text('This Month', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.lightGray)),
                       const SizedBox(height: 4),
-                      Text('₹$totalEarnings', style: const TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.infoBlue)),
+                      Text('₹$monthlyEarnings', style: const TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.infoBlue)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.dividerColor),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Total', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.lightGray)),
+                      const SizedBox(height: 4),
+                      Text('₹$totalEarnings', style: const TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.secondaryPurple)),
                     ],
                   ),
                 ),

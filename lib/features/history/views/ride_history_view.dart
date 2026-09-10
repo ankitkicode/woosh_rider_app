@@ -1,12 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_text_styles.dart';
+import '../view_models/ride_history_view_model.dart';
 
-class RideHistoryView extends StatelessWidget {
+class RideHistoryView extends ConsumerStatefulWidget {
   const RideHistoryView({super.key});
 
   @override
+  ConsumerState<RideHistoryView> createState() => _RideHistoryViewState();
+}
+
+class _RideHistoryViewState extends ConsumerState<RideHistoryView> {
+  @override
   Widget build(BuildContext context) {
+    final state = ref.watch(rideHistoryViewModelProvider);
+    final vm = ref.read(rideHistoryViewModelProvider.notifier);
+    final filteredRides = vm.filteredRides;
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
@@ -14,34 +26,45 @@ class RideHistoryView extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          _buildFilterTabs(),
-          const SizedBox(height: 24),
-          _buildRideCard('Today, 10:30 AM', 'Completed', '₹150', 'Ankit Jatav', 'Mumbai Central', 'Andheri West'),
-          _buildRideCard('Yesterday, 04:15 PM', 'Completed', '₹220', 'Rohan Sharma', 'Bandra', 'Dadar'),
-          _buildRideCard('Yesterday, 09:00 AM', 'Cancelled', '₹0', 'Priya Singh', 'Juhu', 'Versova'),
-        ],
-      ),
+      body: state.isLoading && state.rides.isEmpty
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryPink))
+          : state.error != null && state.rides.isEmpty
+              ? Center(child: Text('Error: ${state.error}'))
+              : RefreshIndicator(
+                  color: AppColors.primaryPink,
+                  onRefresh: () => vm.loadHistory(),
+                  child: ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      _buildFilterTabs(state.filter, vm),
+                      const SizedBox(height: 24),
+                      if (filteredRides.isEmpty)
+                        const Center(child: Text('No rides found.', style: TextStyle(color: AppColors.lightGray)))
+                      else
+                        ...filteredRides.map((ride) => _buildRideCard(ride)).toList(),
+                    ],
+                  ),
+                ),
     );
   }
 
-  Widget _buildFilterTabs() {
+  Widget _buildFilterTabs(String currentFilter, RideHistoryViewModel vm) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildTab('All Rides', true),
-          _buildTab('Completed', false),
-          _buildTab('Cancelled', false),
+          _buildTab('All Rides', currentFilter == 'All Rides', () => vm.setFilter('All Rides')),
+          _buildTab('Completed', currentFilter == 'Completed', () => vm.setFilter('Completed')),
+          _buildTab('Cancelled', currentFilter == 'Cancelled', () => vm.setFilter('Cancelled')),
         ],
       ),
     );
   }
 
-  Widget _buildTab(String label, bool isSelected) {
-    return Container(
+  Widget _buildTab(String label, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
@@ -58,11 +81,22 @@ class RideHistoryView extends StatelessWidget {
           color: isSelected ? Colors.white : AppColors.darkText,
         ),
       ),
+      ),
     );
   }
 
-  Widget _buildRideCard(String date, String status, String amount, String passenger, String pickup, String drop) {
-    final isCompleted = status == 'Completed';
+  Widget _buildRideCard(Map<String, dynamic> ride) {
+    final status = (ride['status'] as String? ?? '').toLowerCase();
+    final isCompleted = status == 'completed' || status == 'payment_completed';
+    
+    final dateStr = ride['createdAt'] as String?;
+    final date = dateStr != null ? DateFormat('MMM dd, yyyy • hh:mm a').format(DateTime.parse(dateStr).toLocal()) : 'Unknown Date';
+    
+    final amount = '₹${ride['finalFare'] ?? ride['estimatedFare'] ?? 0}';
+    final passengerName = ride['passenger']?['name'] ?? 'Passenger';
+    final pickup = ride['pickup']?['address'] ?? 'Unknown Pickup';
+    final drop = ride['drop']?['address'] ?? 'Unknown Drop';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -105,7 +139,7 @@ class RideHistoryView extends StatelessWidget {
                 children: [
                   CircleAvatar(radius: 16, backgroundColor: AppColors.scaffoldBg, child: const Icon(Icons.person, size: 16, color: AppColors.lightGray)),
                   const SizedBox(width: 10),
-                  Text(passenger, style: const TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.darkText)),
+                  Text(passengerName, style: const TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.darkText)),
                 ],
               ),
               Text(amount, style: TextStyle(fontFamily: 'Poppins', fontSize: 16, fontWeight: FontWeight.w800, color: isCompleted ? AppColors.primaryPink : AppColors.lightGray)),
