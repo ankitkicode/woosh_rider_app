@@ -142,8 +142,14 @@ class _RegisterViewState extends ConsumerState<RegisterView> with TickerProvider
       if (result == 'new_user') {
         // New user — proceed to details step
         setState(() => _currentStep = 2);
+      } else if (result == 'approved') {
+        context.go('/home');
+      } else if (result == 'kyc_pending_review') {
+        context.go('/kyc/pending');
+      } else if (result == 'kyc_pending') {
+        context.go('/kyc');
       } else {
-        // Existing user — they should use login instead
+        // Existing user — redirect to login
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

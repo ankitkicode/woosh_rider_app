@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/app_colors.dart';
-import '../../../core/app_text_styles.dart';
 import 'kyc_step_wrapper.dart';
 import '../view_models/kyc_view_model.dart';
 
@@ -30,11 +29,30 @@ class _KycViewState extends ConsumerState<KycView> {
     // Already approved - go home
     if (state.kycStatus == 'approved') {
       WidgetsBinding.instance.addPostFrameCallback((_) => context.go('/home'));
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primaryPink),
+        ),
+      );
     }
 
-    // Pending or under review - show pending screen
-    if (state.kycStatus == 'under_review' && state.currentStep == 1) {
+    // Under review or rejected - show pending screen
+    if ((state.kycStatus == 'under_review' || state.kycStatus == 'rejected') && state.currentStep == 1) {
       WidgetsBinding.instance.addPostFrameCallback((_) => context.go('/kyc/pending'));
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primaryPink),
+        ),
+      );
+    }
+
+    // While status is still fetching or null
+    if (state.isLoading || state.kycStatus == null) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primaryPink),
+        ),
+      );
     }
 
     return const KycStepWrapper();

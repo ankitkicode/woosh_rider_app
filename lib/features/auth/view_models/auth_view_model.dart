@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../data/repositories/rider_repository.dart';
 
 // Provider for ApiService
 final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
@@ -23,7 +24,9 @@ class AuthState {
 // ViewModel notifier
 class AuthViewModel extends StateNotifier<AuthState> {
   final AuthRepository _repo;
-  AuthViewModel(this._repo) : super(const AuthState());
+  final ApiService _api;
+
+  AuthViewModel(this._repo, this._api) : super(const AuthState());
 
   Future<String?> sendOtp(String phoneNumber, {String action = 'login'}) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -34,7 +37,7 @@ class AuthViewModel extends StateNotifier<AuthState> {
     }
   }
 
-  /// Returns: 'new_user' | 'kyc_pending' | 'approved'
+  /// Returns: 'new_user' | 'approved' | 'kyc_pending_review' | 'kyc_pending'
   Future<String> verifyOtp({required String phoneNumber, required String otp}) async {
     state = state.copyWith(isLoading: true);
     try {
@@ -49,9 +52,25 @@ class AuthViewModel extends StateNotifier<AuthState> {
         return 'new_user';
       }
       
-      // Existing user — check KYC
-      final kycStatus = (data['user'] as Map?)?['kycStatus']?.toString();
-      return kycStatus == 'approved' ? 'approved' : 'kyc_pending';
+      // Existing user — check real KYC status from server
+      try {
+        final riderRepo = RiderRepository(_api);
+        final kycStatusModel = await riderRepo.getKycStatus();
+        if (kycStatusModel.isApproved) {
+          return 'approved';
+        } else if (kycStatusModel.status == 'under_review' || kycStatusModel.status == 'rejected') {
+          return 'kyc_pending_review';
+        } else {
+          return 'kyc_pending';
+        }
+      } catch (_) {
+        // Fallback if KYC status fetch fails
+        final kycStatus = (data['user'] as Map?)?['kycStatus']?.toString() ??
+            (data['riderProfile'] as Map?)?['kycStatus']?.toString();
+        if (kycStatus == 'approved') return 'approved';
+        if (kycStatus == 'under_review' || kycStatus == 'rejected') return 'kyc_pending_review';
+        return 'kyc_pending';
+      }
     } finally {
       state = state.copyWith(isLoading: false);
     }
@@ -80,5 +99,5 @@ class AuthViewModel extends StateNotifier<AuthState> {
 }
 
 final authViewModelProvider = StateNotifierProvider<AuthViewModel, AuthState>(
-  (ref) => AuthViewModel(ref.read(authRepositoryProvider)),
+  (ref) => AuthViewModel(ref.read(authRepositoryProvider), ref.read(apiServiceProvider)),
 );

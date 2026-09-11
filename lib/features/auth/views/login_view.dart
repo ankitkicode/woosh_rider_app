@@ -59,21 +59,6 @@ class _LoginViewState extends ConsumerState<LoginView> {
     }
   }
 
-/*  void _showOtpToast() {
-    if (_receivedOtp != null && _receivedOtp!.isNotEmpty && mounted) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('🔑 Test OTP is: $_receivedOtp', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-          backgroundColor: AppColors.secondaryPurple,
-          duration: const Duration(seconds: 30),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-    }
-  }*/
 
   void _startResendTimer() {
     Future.delayed(const Duration(seconds: 1), _countdown);
@@ -122,6 +107,8 @@ class _LoginViewState extends ConsumerState<LoginView> {
         });
       } else if (result == 'approved') {
         context.go('/home');
+      } else if (result == 'kyc_pending_review') {
+        context.go('/kyc/pending');
       } else if (result == 'kyc_pending') {
         context.go('/kyc');
       } else {
