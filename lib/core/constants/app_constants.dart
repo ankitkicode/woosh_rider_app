@@ -4,6 +4,16 @@ class AppConstants {
   // Use 10.0.2.2 for Android Emulator to connect to localhost
   // static const String baseUrl = 'http://192.168.1.8:5001/api/v1'; 
   static const String baseUrl = 'https://wooshride.in/api/v1'; 
+  static const String imageBaseUrl = 'https://wooshride.in';
+
+  static String getFullImageUrl(String? path) {
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+    final cleanPath = path.startsWith('/') ? path : '/$path';
+    return '$imageBaseUrl$cleanPath';
+  }
   
   // Use your Mac's IP (like 10.169.140.20) ONLY if testing on a PHYSICAL device
   // static const String baseUrl = 'http://10.0.2.2:5001/api/v1';

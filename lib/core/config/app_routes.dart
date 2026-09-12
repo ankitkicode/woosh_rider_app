@@ -9,6 +9,8 @@ import '../../core/layouts/main_layout.dart';
 import '../../features/earnings/views/earnings_view.dart';
 import '../../features/history/views/ride_history_view.dart';
 import '../../features/profile/views/profile_view.dart';
+import '../../features/profile/views/edit_profile_view.dart';
+import '../../features/profile/views/kyc_documents_view.dart';
 import '../../features/ride/views/active_ride_view.dart';
 
 class AppRoutes {
@@ -59,6 +61,8 @@ class AppRoutes {
           StatefulShellBranch(
             routes: [
               GoRoute(path: '/profile', builder: (_, _) => const ProfileView()),
+              GoRoute(path: '/edit-profile', builder: (_, _) => const EditProfileView()),
+              GoRoute(path: '/kyc-documents', builder: (_, _) => const KycDocumentsView()),
             ],
           ),
         ],

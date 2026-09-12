@@ -1,11 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/app_colors.dart';
-import '../../../data/services/socket_service.dart';
-import '../../../data/services/location_foreground_service.dart';
 import '../view_models/ride_view_model.dart';
 
 class ActiveRideView extends ConsumerStatefulWidget {
@@ -19,20 +19,108 @@ class ActiveRideView extends ConsumerStatefulWidget {
 class _ActiveRideViewState extends ConsumerState<ActiveRideView> {
   final TextEditingController _otpController = TextEditingController();
   GoogleMapController? _mapController;
+  
+  BitmapDescriptor? _bikeIcon;
+  StreamSubscription<Position>? _positionStreamSubscription;
+  LatLng? _currentPosition;
+  double _currentHeading = 0.0;
+  
+  Timer? _arrivedTimer;
+  DateTime? _arrivedTime;
+  String _previousStatus = '';
 
   @override
   void initState() {
     super.initState();
+    _loadBikeIcon();
+    _startLocationTracking();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(rideViewModelProvider.notifier).getRideDetails(widget.rideId);
       ref.read(rideViewModelProvider.notifier).startPolling(widget.rideId);
     });
   }
 
+  Future<void> _loadBikeIcon() async {
+    _bikeIcon = await BitmapDescriptor.asset(
+      const ImageConfiguration(size: Size(48, 48)),
+      'assets/images/bike_marker.png',
+    );
+    if (mounted) setState(() {});
+  }
+
+  void _startLocationTracking() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+    if (permission == LocationPermission.deniedForever) return;
+
+    final initialPos = await Geolocator.getCurrentPosition();
+    if (mounted) {
+      setState(() {
+        _currentPosition = LatLng(initialPos.latitude, initialPos.longitude);
+        _currentHeading = initialPos.heading;
+      });
+      _mapController?.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 16));
+    }
+
+    _positionStreamSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 2,
+      ),
+    ).listen((Position position) {
+      if (mounted) {
+        setState(() {
+          _currentPosition = LatLng(position.latitude, position.longitude);
+          _currentHeading = position.heading;
+        });
+        _mapController?.animateCamera(
+          CameraUpdate.newLatLng(_currentPosition!),
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _positionStreamSubscription?.cancel();
+    _arrivedTimer?.cancel();
     _otpController.dispose();
     super.dispose();
+  }
+  
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    if (duration.inHours > 0) {
+      return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
+    }
+    return "$twoDigitMinutes:$twoDigitSeconds";
+  }
+
+  String _formatDistance(double meters) {
+    if (meters > 1000) {
+      return '${(meters / 1000).toStringAsFixed(1)} km';
+    }
+    return '${meters.toStringAsFixed(0)} m';
+  }
+
+  String _formatEta(double meters) {
+    // Assume average city speed of 30 km/h = 8.33 m/s
+    final minutes = (meters / 8.33 / 60).ceil();
+    if (minutes <= 0) return '1 min';
+    if (minutes > 60) {
+      final hours = minutes ~/ 60;
+      final mins = minutes % 60;
+      return '${hours}h ${mins}m';
+    }
+    return '$minutes mins';
   }
 
   @override
@@ -51,7 +139,49 @@ class _ActiveRideViewState extends ConsumerState<ActiveRideView> {
     final drop = ride['drop'];
     final passenger = ride['passenger'];
 
+    if (status == 'rider_arrived' && _previousStatus != 'rider_arrived') {
+      _arrivedTime = ride['arrivedAt'] != null 
+          ? DateTime.parse(ride['arrivedAt']) 
+          : (ride['updatedAt'] != null ? DateTime.parse(ride['updatedAt']) : DateTime.now());
+      _arrivedTimer?.cancel();
+      _arrivedTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted) setState(() {});
+      });
+    }
+    _previousStatus = status;
+
+    String distanceText = '';
+    String etaText = '';
+    
+    if (_currentPosition != null) {
+      if (status == 'accepted' && pickup != null) {
+        final distanceInMeters = Geolocator.distanceBetween(
+          _currentPosition!.latitude, _currentPosition!.longitude,
+          pickup['latitude'], pickup['longitude'],
+        );
+        distanceText = _formatDistance(distanceInMeters);
+        etaText = _formatEta(distanceInMeters);
+      } else if ((status == 'started' || status == 'in_progress') && drop != null) {
+        final distanceInMeters = Geolocator.distanceBetween(
+          _currentPosition!.latitude, _currentPosition!.longitude,
+          drop['latitude'], drop['longitude'],
+        );
+        distanceText = _formatDistance(distanceInMeters);
+        etaText = _formatEta(distanceInMeters);
+      }
+    }
+
     final markers = <Marker>{};
+    if (_currentPosition != null && _bikeIcon != null) {
+      markers.add(Marker(
+        markerId: const MarkerId('rider'),
+        position: _currentPosition!,
+        icon: _bikeIcon!,
+        anchor: const Offset(0.5, 0.5),
+        rotation: _currentHeading,
+        zIndex: 2, // ignore: deprecated_member_use
+      ));
+    }
     if (pickup != null) {
       markers.add(Marker(
         markerId: const MarkerId('pickup'),
@@ -73,16 +203,16 @@ class _ActiveRideViewState extends ConsumerState<ActiveRideView> {
           // Map
           GoogleMap(
             initialCameraPosition: CameraPosition(
-              target: pickup != null 
+              target: _currentPosition ?? (pickup != null 
                   ? LatLng(pickup['latitude'], pickup['longitude']) 
-                  : const LatLng(23.2599, 77.4126),
-              zoom: 14,
+                  : const LatLng(23.2599, 77.4126)),
+              zoom: 16,
             ),
             markers: markers,
             polylines: pickup != null && drop != null ? {
               Polyline(
                 polylineId: const PolylineId('route'),
-                color: AppColors.primaryPink,
+                color: AppColors.successGreen,
                 width: 4,
                 points: [
                   LatLng(pickup['latitude'], pickup['longitude']),
@@ -90,9 +220,14 @@ class _ActiveRideViewState extends ConsumerState<ActiveRideView> {
                 ],
               ),
             } : {},
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            onMapCreated: (c) => _mapController = c,
+            myLocationEnabled: false,
+            myLocationButtonEnabled: false,
+            onMapCreated: (c) {
+              _mapController = c;
+              if (_currentPosition != null) {
+                c.animateCamera(CameraUpdate.newLatLngZoom(_currentPosition!, 16));
+              }
+            },
             padding: const EdgeInsets.only(bottom: 300), // padding for bottom sheet
           ),
 
@@ -170,6 +305,37 @@ class _ActiveRideViewState extends ConsumerState<ActiveRideView> {
                     ],
                   ),
 
+                  if ((status == 'accepted' || status == 'started' || status == 'in_progress') && distanceText.isNotEmpty && etaText.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Column(
+                            children: [
+                              const Text('Distance', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              Text(distanceText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            ],
+                          ),
+                          Container(height: 30, width: 1, color: Colors.grey[300]),
+                          Column(
+                            children: [
+                              const Text('ETA', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              Text(etaText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryPink)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 16),
                   const Divider(),
                   const SizedBox(height: 8),
@@ -184,7 +350,15 @@ class _ActiveRideViewState extends ConsumerState<ActiveRideView> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('PICKUP', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('PICKUP', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+                                  if (status == 'rider_arrived' && _arrivedTime != null)
+                                    Text('Waiting: ${_formatDuration(DateTime.now().difference(_arrivedTime!))}', 
+                                      style: const TextStyle(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
                               Text(pickup?['address'] ?? 'Loading...', style: const TextStyle(fontSize: 14)),
                             ],
                           ),

@@ -20,23 +20,87 @@ class RiderRepository {
     }
   }
 
-  /// Update rider profile (personal info & vehicle info steps)
-  Future<void> updateProfile({
+  /// Update rider profile
+  Future<Map<String, dynamic>> updateProfile({
+    String? name,
+    String? email,
+    String? gender,
+    String? dateOfBirth,
+    String? city,
     String? vehicleNumber,
     String? vehicleModel,
     String? vehicleColor,
-    String? city,
-    String? dateOfBirth,
   }) async {
     try {
       final body = <String, dynamic>{};
+      if (name != null) body['name'] = name;
+      if (email != null) body['email'] = email;
+      if (gender != null) body['gender'] = gender;
+      if (dateOfBirth != null) body['dateOfBirth'] = dateOfBirth;
+      if (city != null) body['city'] = city;
       if (vehicleNumber != null) body['vehicleNumber'] = vehicleNumber;
       if (vehicleModel != null) body['vehicleModel'] = vehicleModel;
       if (vehicleColor != null) body['vehicleColor'] = vehicleColor;
-      if (city != null) body['city'] = city;
-      if (dateOfBirth != null) body['dateOfBirth'] = dateOfBirth;
-      await _api.put('/rider/profile', data: body);
+
+      final response = await _api.post('/rider/profile', data: body);
+      final data = ApiService.parseData(response);
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      return body;
     } on DioException catch (e) {
+      if (e.response?.statusCode == 404 || e.response?.statusCode == 405) {
+        final body = <String, dynamic>{};
+        if (name != null) body['name'] = name;
+        if (email != null) body['email'] = email;
+        if (gender != null) body['gender'] = gender;
+        if (dateOfBirth != null) body['dateOfBirth'] = dateOfBirth;
+        if (city != null) body['city'] = city;
+        if (vehicleNumber != null) body['vehicleNumber'] = vehicleNumber;
+        if (vehicleModel != null) body['vehicleModel'] = vehicleModel;
+        if (vehicleColor != null) body['vehicleColor'] = vehicleColor;
+        final response = await _api.put('/rider/profile', data: body);
+        final data = ApiService.parseData(response);
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+        return body;
+      }
+      throw ApiService.parseError(e);
+    }
+  }
+
+  /// Upload rider profile image (multipart upload - field: image)
+  Future<Map<String, dynamic>> updateProfileImage(String imagePath) async {
+    try {
+      final formData = FormData.fromMap({
+        'image': await MultipartFile.fromFile(
+          imagePath,
+          filename: 'profile_image.jpg',
+        ),
+      });
+
+      final response = await _api.post('/rider/profile-image', formData: formData);
+      final data = ApiService.parseData(response);
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      return {};
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        final formData = FormData.fromMap({
+          'image': await MultipartFile.fromFile(
+            imagePath,
+            filename: 'profile_image.jpg',
+          ),
+        });
+        final response = await _api.post('/rider/profile/image', formData: formData);
+        final data = ApiService.parseData(response);
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+        return {};
+      }
       throw ApiService.parseError(e);
     }
   }

@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/app_colors.dart';
-import '../../../core/app_text_styles.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../shared/widgets/woosh_gradient_button.dart';
 import '../../kyc/view_models/kyc_view_model.dart';
+import '../../profile/view_models/profile_view_model.dart';
 import '../../../data/services/socket_service.dart';
 import '../../../data/services/storage_service.dart';
 import '../../../data/services/location_foreground_service.dart';
@@ -18,19 +23,32 @@ class DriverHomeView extends ConsumerStatefulWidget {
   ConsumerState<DriverHomeView> createState() => _DriverHomeViewState();
 }
 
-class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
+class _DriverHomeViewState extends ConsumerState<DriverHomeView> with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _earnings;
   bool _loadingEarnings = false;
   String? _riderId;
+  late AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+
     _loadEarnings();
     _initSocket();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(kycViewModelProvider.notifier).loadStatus();
+      ref.read(profileViewModelProvider.notifier).loadProfile();
     });
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 
   Future<void> _initSocket() async {
@@ -38,7 +56,6 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
     final socketService = SocketService();
     socketService.connect();
 
-    // Small delay to ensure socket connects before joining
     Future.delayed(const Duration(seconds: 1), () {
       if (_riderId != null) {
         socketService.joinRiderRoom(_riderId!);
@@ -52,45 +69,39 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
   }
 
   void _showRideRequestPopup(Map<String, dynamic> data) {
-    showDialog(
+    try {
+      FlutterRingtonePlayer().play(
+        android: AndroidSounds.ringtone,
+        ios: IosSounds.glass,
+        looping: true,
+        volume: 1.0,
+        asAlarm: true,
+      );
+    } catch (_) {}
+    HapticFeedback.vibrate();
+
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('🚗 New Ride Request!', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: AppColors.primaryPink)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Pickup: ${data['pickup']['address'] ?? 'Nearby'}', style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
-              const SizedBox(height: 8),
-              Text('Drop: ${data['drop']['address'] ?? 'Destination'}', style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)),
-              const SizedBox(height: 12),
-              Text('Distance: ${data['distanceKm']} km', style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600)),
-              Text('Fare: ₹${data['fare']}', style: const TextStyle(fontFamily: 'Poppins', fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.successGreen)),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _handleRideResponse(data['rideId'] as String, false);
-              },
-              child: const Text('Reject', style: TextStyle(color: AppColors.errorRed, fontFamily: 'Poppins')),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryPink, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-              onPressed: () {
-                Navigator.pop(context);
-                _handleRideResponse(data['rideId'] as String, true);
-              },
-              child: const Text('Accept', style: TextStyle(color: Colors.white, fontFamily: 'Poppins')),
-            ),
-          ],
-        );
-      },
-    );
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _RideRequestPopupDialog(
+        data: data,
+        onResponse: (rideId, accept) {
+          try {
+            FlutterRingtonePlayer().stop();
+          } catch (_) {}
+          Navigator.of(ctx).pop();
+          _handleRideResponse(rideId, accept);
+        },
+      ),
+    ).then((_) {
+      try {
+        FlutterRingtonePlayer().stop();
+      } catch (_) {}
+    });
   }
 
   Future<void> _handleRideResponse(String rideId, bool accept) async {
@@ -99,25 +110,26 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
       if (accept) {
         await repo.acceptRide(rideId);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ride Accepted!'), backgroundColor: AppColors.successGreen));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ride Accepted!'), backgroundColor: AppColors.successGreen),
+          );
           context.push('/ride-active/$rideId');
         }
       } else {
         await repo.rejectRide(rideId);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ride Rejected'), backgroundColor: AppColors.infoBlue));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ride Rejected'), backgroundColor: AppColors.infoBlue),
+          );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.errorRed));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.errorRed),
+        );
       }
     }
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   Future<void> _loadEarnings() async {
@@ -135,12 +147,13 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
     if (kycStatus != 'approved') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Your KYC is not yet approved. Please wait for admin approval.'),
+          content: Text('⚠️Your KYC is not yet approved. Please wait for admin approval.'),
           backgroundColor: AppColors.warningAmber,
         ),
       );
       return;
     }
+
     try {
       final repo = ref.read(riderRepositoryProvider);
       final newStatus = !current;
@@ -161,20 +174,18 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
                 backgroundColor: AppColors.errorRed,
               ),
             );
-            // Revert online status since location is unavailable
             await repo.toggleOnlineStatus(isOnline: false);
             if (mounted) {
               ref.read(isOnlineProvider.notifier).state = false;
             }
           } else {
-            // Emitting status changed with location since it started successfully
             final position = await Geolocator.getCurrentPosition(
-              locationSettings: LocationSettings(accuracy: LocationAccuracy.high),
+              locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
             );
             SocketService().emitStatusChanged(
-              _riderId!, 
-              newStatus, 
-              lat: position.latitude, 
+              _riderId!,
+              newStatus,
+              lat: position.latitude,
               lng: position.longitude,
             );
           }
@@ -184,238 +195,497 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.errorRed));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.errorRed),
+        );
       }
     }
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning 👋';
+    if (hour < 17) return 'Good Afternoon 👋';
+    return 'Good Evening 👋';
   }
 
   @override
   Widget build(BuildContext context) {
     final isOnline = ref.watch(isOnlineProvider);
     final kycState = ref.watch(kycViewModelProvider);
+    final profileState = ref.watch(profileViewModelProvider);
     final isKycApproved = kycState.kycStatus == 'approved';
+    final riderName = profileState.name.isNotEmpty ? profileState.name : 'Rider';
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
-        child: Column(children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-            color: Colors.white,
-            child: Row(children: [
-              // Online/Offline indicator
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: isOnline ? AppColors.onlineGreen : AppColors.offlineGray,
-                  shape: BoxShape.circle,
-                ),
+        child: Column(
+          children: [
+            // Top Navigation Header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                isOnline ? 'Online' : 'Offline',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: isOnline ? AppColors.onlineGreen : AppColors.offlineGray,
-                ),
-              ),
-              const Spacer(),
-              Image.asset(
-                'assets/images/woosh_rider_logo.png',
-                // height: 30,
-                width: 80,
-                fit: BoxFit.contain,
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => context.push('/profile'),
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(gradient: AppColors.brandGradient, shape: BoxShape.circle),
-                  child: const Icon(Icons.person, color: Colors.white, size: 22),
-                ),
-              ),
-            ]),
-          ),
-
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(children: [
-
-                // KYC warning if not approved
-                if (kycState.kycStatus != null && !isKycApproved)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    margin: const EdgeInsets.only(bottom: 20),
-                    decoration: BoxDecoration(
-                      color: AppColors.warningAmber.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.warningAmber),
+              child: Row(
+                children: [
+                  // Profile Avatar
+                  GestureDetector(
+                    onTap: () => context.push('/profile'),
+                    child: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: AppColors.primaryPink.withValues(alpha: 0.1),
+                      backgroundImage: profileState.profileImage != null && profileState.profileImage!.isNotEmpty
+                          ? NetworkImage(AppConstants.getFullImageUrl(profileState.profileImage))
+                          : null,
+                      child: profileState.profileImage == null || profileState.profileImage!.isEmpty
+                          ? const Icon(Icons.person, color: AppColors.primaryPink, size: 22)
+                          : null,
                     ),
-                    child: Row(children: [
-                      const Icon(Icons.pending_actions, color: AppColors.warningAmber, size: 28),
-                      const SizedBox(width: 12),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        const Text('KYC Pending Approval', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.warningAmber)),
-                        const Text('You cannot go online until your KYC is approved.', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.bodyText)),
-                        TextButton(
-                          onPressed: () => context.go('/kyc/pending'),
-                          child: const Text('Check Status →', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.primaryPink, fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Greeting & Name
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _getGreeting(),
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 11,
+                            color: AppColors.lightGray,
+                          ),
                         ),
-                      ])),
-                    ]),
+                        Text(
+                          riderName,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.darkText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
 
-                // MAIN ONLINE/OFFLINE TOGGLE
-                Container(
-                  padding: const EdgeInsets.all(28),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 6))],
+                  // Online/Offline Status Pill Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isOnline
+                          ? AppColors.onlineGreen.withValues(alpha: 0.1)
+                          : AppColors.offlineGray.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isOnline ? AppColors.onlineGreen : AppColors.offlineGray,
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AnimatedBuilder(
+                          animation: _pulseController,
+                          builder: (context, child) => Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: isOnline ? AppColors.onlineGreen : AppColors.offlineGray,
+                              shape: BoxShape.circle,
+                              boxShadow: isOnline
+                                  ? [
+                                      BoxShadow(
+                                        color: AppColors.onlineGreen.withValues(alpha: 0.6),
+                                        blurRadius: 4 * _pulseController.value,
+                                        spreadRadius: 2 * _pulseController.value,
+                                      ),
+                                    ]
+                                  : [],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isOnline ? 'ONLINE' : 'OFFLINE',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11,
+                            color: isOnline ? AppColors.onlineGreen : AppColors.offlineGray,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(children: [
-                    Text(
-                      isOnline ? 'You are Online' : 'You are Offline',
-                      style: AppTextStyles.heading3,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      isOnline ? 'Waiting for ride requests...' : 'Tap the button to go online',
-                      style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, color: AppColors.lightGray),
-                    ),
-                    const SizedBox(height: 28),
+                ],
+              ),
+            ),
 
-                    // Big toggle button
-                    GestureDetector(
-                      onTap: () => _toggleOnline(isOnline),
-                      child: Container(
-                        width: 140,
-                        height: 140,
+            // Scrollable Content
+            Expanded(
+              child: RefreshIndicator(
+                color: AppColors.primaryPink,
+                onRefresh: () async {
+                  await _loadEarnings();
+                  ref.read(profileViewModelProvider.notifier).loadProfile();
+                },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      // KYC Pending Banner
+                      if (kycState.kycStatus != null && !isKycApproved)
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.only(bottom: 20),
+                          decoration: BoxDecoration(
+                            color: AppColors.warningAmber.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.warningAmber),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.pending_actions_rounded, color: AppColors.warningAmber, size: 28),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'KYC Approval Required',
+                                      style: TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                        color: AppColors.warningAmber,
+                                      ),
+                                    ),
+                                    const Text(
+                                      'You cannot go online until your KYC is approved.',
+                                      style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.bodyText),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => context.go('/kyc/pending'),
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: const Text(
+                                        'Check Status →',
+                                        style: TextStyle(
+                                          fontFamily: 'Poppins',
+                                          fontSize: 12,
+                                          color: AppColors.primaryPink,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // HERO DUTY TOGGLE CARD
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          gradient: isOnline ? AppColors.onlineGradient : const LinearGradient(colors: [Color(0xFF9E9E9E), Color(0xFF757575)]),
-                          shape: BoxShape.circle,
+                          gradient: isOnline
+                              ? const LinearGradient(
+                                  colors: [Color(0xFFE8F8F5), Color(0xFFD1F2EB)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : const LinearGradient(
+                                  colors: [Color(0xFFF3E5F5), Color(0xFFEDE7F6)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(
+                            color: isOnline ? const Color(0xFFA3E4D7) : const Color(0xFFD1C4E9),
+                            width: 1.2,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: (isOnline ? AppColors.onlineGreen : AppColors.offlineGray).withValues(alpha: 0.35),
-                              blurRadius: 24,
+                              color: (isOnline ? AppColors.onlineGreen : AppColors.secondaryPurple).withValues(alpha: 0.15),
+                              blurRadius: 18,
                               offset: const Offset(0, 8),
                             ),
                           ],
                         ),
-                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Icon(isOnline ? Icons.pause : Icons.power_settings_new, color: Colors.white, size: 44),
-                          const SizedBox(height: 6),
-                          Text(isOnline ? 'Go Offline' : 'Go Online', style: const TextStyle(fontFamily: 'Poppins', color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
-                        ]),
-                      ),
-                    ),
-
-                    if (kycState.kycStatus != null && !isKycApproved) ...[
-                      const SizedBox(height: 12),
-                      Text('KYC approval required', style: TextStyle(fontFamily: 'Poppins', fontSize: 11, color: AppColors.warningAmber.withValues(alpha: 0.8))),
-                    ],
-                  ]),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Daily Safety Checklist Button
-                if (isKycApproved && !isOnline)
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 24),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: kycState.isChecklistUpdatedToday
-                        ? Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: AppColors.successGreen.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.successGreen),
-                            ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Icon(Icons.check_circle, color: AppColors.successGreen),
-                                SizedBox(width: 8),
-                                Text(
-                                  "Today's Safety Checklist Done",
-                                  style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.successGreen),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      isOnline ? 'ON DUTY' : 'OFF DUTY',
+                                      style: TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: isOnline ? AppColors.onlineGreen : AppColors.secondaryPurple,
+                                        letterSpacing: 1.0,
+                                      ),
+                                    ),
+                                    Text(
+                                      isOnline ? 'Ready for Rides' : 'Not Accepting Rides',
+                                      style: const TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.darkText,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                // Status Pulse Circle Icon
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: isOnline
+                                        ? AppColors.onlineGreen.withValues(alpha: 0.12)
+                                        : AppColors.secondaryPurple.withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    isOnline ? Icons.electric_bike_rounded : Icons.power_settings_new_rounded,
+                                    color: isOnline ? AppColors.onlineGreen : AppColors.secondaryPurple,
+                                    size: 24,
+                                  ),
                                 ),
                               ],
                             ),
-                          )
-                        : ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppColors.primaryPink,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: const BorderSide(color: AppColors.primaryPink),
+
+                            const SizedBox(height: 24),
+
+                            // Main Large Interactive Toggle Button
+                            GestureDetector(
+                              onTap: () => _toggleOnline(isOnline),
+                              child: AnimatedBuilder(
+                                animation: _pulseController,
+                                builder: (context, child) => Container(
+                                  width: 120,
+                                  height: 120,
+                                  decoration: BoxDecoration(
+                                    gradient: isOnline
+                                        ? AppColors.onlineGradient
+                                        : const LinearGradient(
+                                            colors: [Color(0xFFE91E63), Color(0xFF9C27B0)],
+                                          ),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: (isOnline ? AppColors.onlineGreen : AppColors.primaryPink).withValues(
+                                          alpha: isOnline ? 0.4 + (_pulseController.value * 0.2) : 0.3,
+                                        ),
+                                        blurRadius: 20 + (_pulseController.value * 8),
+                                        spreadRadius: isOnline ? 4 * _pulseController.value : 0,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        isOnline ? Icons.pause_rounded : Icons.power_settings_new_rounded,
+                                        color: Colors.white,
+                                        size: 40,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        isOnline ? 'OFFLINE' : 'GO ONLINE',
+                                        style: const TextStyle(
+                                          fontFamily: 'Poppins',
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
-                            icon: const Icon(Icons.checklist_rtl),
-                            label: const Text(
-                              'Update Daily Safety Checklist',
-                              style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, fontSize: 15),
+
+                            const SizedBox(height: 16),
+
+                            Text(
+                              isOnline
+                                  ? 'Searching for nearby passenger requests...'
+                                  : 'Tap the button to start receiving rides',
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 12,
+                                color: AppColors.bodyText,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                            onPressed: () => _showDailyChecklistDialog(context, ref),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Daily Safety Checklist Button
+                      if (isKycApproved && !isOnline)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 20),
+                          child: kycState.isChecklistUpdatedToday
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.successGreen.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.5)),
+                                  ),
+                                  child: const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.check_circle_rounded, color: AppColors.successGreen, size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        "Today's Safety Checklist Done",
+                                        style: TextStyle(
+                                          fontFamily: 'Poppins',
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                          color: AppColors.successGreen,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: AppColors.primaryPink,
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      side: const BorderSide(color: AppColors.primaryPink, width: 1.5),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.checklist_rtl_rounded),
+                                  label: const Text(
+                                    'Update Daily Safety Checklist',
+                                    style: TextStyle(
+                                      fontFamily: 'Poppins',
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  onPressed: () => _showDailyChecklistDialog(context, ref),
+                                ),
+                        ),
+
+                      // STATS SECTION HEADER
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "Performance Summary",
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.darkText,
+                            ),
                           ),
-                  ),                // Today's stats
-                Row(children: [
-                  Expanded(
-                    child: _StatCard(
-                      title: "Today's Rides",
-                      value: _loadingEarnings ? '—' : '${_earnings?['summary']?['todayRides'] ?? 0}',
-                      icon: Icons.electric_bike,
-                      color: AppColors.infoBlue,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _StatCard(
-                      title: "Today's Earnings",
-                      value: _loadingEarnings ? '—' : '₹${_earnings?['summary']?['todayEarnings'] ?? 0}',
-                      icon: Icons.currency_rupee,
-                      color: AppColors.successGreen,
-                    ),
-                  ),
-                ]),
+                          InkWell(
+                            onTap: () => context.go('/earnings'),
+                            child: const Text(
+                              'Earnings Details →',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryPink,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
 
-                const SizedBox(height: 12),
+                      // Today's Stats Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              title: "Today's Rides",
+                              value: _loadingEarnings ? '—' : '${_earnings?['summary']?['todayRides'] ?? 0}',
+                              icon: Icons.electric_bike_rounded,
+                              color: AppColors.infoBlue,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _StatCard(
+                              title: "Today's Earnings",
+                              value: _loadingEarnings ? '—' : '₹${_earnings?['summary']?['todayEarnings'] ?? 0}',
+                              icon: Icons.currency_rupee_rounded,
+                              color: AppColors.successGreen,
+                            ),
+                          ),
+                        ],
+                      ),
 
-                Row(children: [
-                  Expanded(
-                    child: _StatCard(
-                      title: 'Total Rides',
-                      value: _loadingEarnings ? '—' : '${_earnings?['summary']?['totalRides'] ?? 0}',
-                      icon: Icons.history,
-                      color: AppColors.secondaryPurple,
-                    ),
+                      const SizedBox(height: 12),
+
+                      // Total Stats Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              title: 'Total Rides',
+                              value: _loadingEarnings ? '—' : '${_earnings?['summary']?['totalRides'] ?? 0}',
+                              icon: Icons.history_rounded,
+                              color: AppColors.secondaryPurple,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _StatCard(
+                              title: 'Total Earnings',
+                              value: _loadingEarnings ? '—' : '₹${_earnings?['summary']?['totalEarnings'] ?? 0}',
+                              icon: Icons.account_balance_wallet_rounded,
+                              color: AppColors.primaryPink,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 30),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _StatCard(
-                      title: 'Total Earnings',
-                      value: _loadingEarnings ? '—' : '₹${_earnings?['summary']?['totalEarnings'] ?? 0}',
-                      icon: Icons.account_balance_wallet_outlined,
-                      color: AppColors.primaryPink,
-                    ),
-                  ),
-                ]),
-              ]),
+                ),
+              ),
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }
@@ -427,7 +697,12 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final Color color;
 
-  const _StatCard({required this.title, required this.value, required this.icon, required this.color});
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -435,20 +710,49 @@ class _StatCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.dividerColor),
+        boxShadow: const [
+          BoxShadow(color: Color(0x06000000), blurRadius: 10, offset: Offset(0, 3)),
+        ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(height: 12),
-        Text(value, style: TextStyle(fontFamily: 'Poppins', fontSize: 22, fontWeight: FontWeight.w800, color: color)),
-        const SizedBox(height: 4),
-        Text(title, style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.lightGray)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 12,
+              color: AppColors.lightGray,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -477,11 +781,14 @@ class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
   Future<void> _submit() async {
     if (!helmet || !firstAid || !sanitary || !battery) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please check all safety items to proceed.'), backgroundColor: AppColors.errorRed),
+        const SnackBar(
+          content: Text('Please check all safety items to proceed.'),
+          backgroundColor: AppColors.errorRed,
+        ),
       );
       return;
     }
-    
+
     setState(() => _isLoading = true);
     try {
       final repo = ref.read(riderRepositoryProvider);
@@ -493,12 +800,14 @@ class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
         faceVerified: true,
       );
       if (mounted) {
-        // Refresh status so the UI knows it's checked for today
         ref.read(kycViewModelProvider.notifier).loadStatus();
-        
+
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Safety checklist updated!'), backgroundColor: AppColors.successGreen),
+          const SnackBar(
+            content: Text('Safety checklist updated!'),
+            backgroundColor: AppColors.successGreen,
+          ),
         );
       }
     } catch (e) {
@@ -516,7 +825,7 @@ class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: const Color(0xFFFCEEED), // Light pinkish background matching screenshot
+      backgroundColor: const Color(0xFFFCEEED),
       elevation: 0,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Container(
@@ -529,9 +838,9 @@ class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
             const Text(
               'Daily Safety\nChecklist',
               style: TextStyle(
-                fontFamily: 'Poppins', 
-                fontSize: 28, 
-                fontWeight: FontWeight.w800, 
+                fontFamily: 'Poppins',
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
                 height: 1.2,
                 color: AppColors.primaryPink,
               ),
@@ -579,9 +888,9 @@ class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: _isLoading ? null : _submit,
-                    child: _isLoading 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Submit', style: TextStyle(fontFamily: 'Poppins', color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                    child: _isLoading
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('Submit', style: TextStyle(fontFamily: 'Poppins', color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],
@@ -611,6 +920,425 @@ class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
         onChanged: onChanged,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         side: const BorderSide(color: Colors.black54, width: 1.5),
+      ),
+    );
+  }
+}
+
+class _RideRequestPopupDialog extends StatefulWidget {
+  final Map<String, dynamic> data;
+  final Function(String rideId, bool accept) onResponse;
+
+  const _RideRequestPopupDialog({
+    required this.data,
+    required this.onResponse,
+  });
+
+  @override
+  State<_RideRequestPopupDialog> createState() => _RideRequestPopupDialogState();
+}
+
+class _RideRequestPopupDialogState extends State<_RideRequestPopupDialog> with TickerProviderStateMixin {
+  Timer? _timer;
+  int _secondsRemaining = 15;
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+
+    SystemSound.play(SystemSoundType.alert);
+    HapticFeedback.vibrate();
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining > 1) {
+        setState(() => _secondsRemaining--);
+        SystemSound.play(SystemSoundType.alert);
+        HapticFeedback.heavyImpact();
+      } else {
+        _timer?.cancel();
+        final rideId = (widget.data['rideId'] ?? widget.data['_id'])?.toString() ?? '';
+        widget.onResponse(rideId, false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pulseController.dispose();
+    try {
+      FlutterRingtonePlayer().stop();
+    } catch (_) {}
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rideId = (widget.data['rideId'] ?? widget.data['_id'])?.toString() ?? '';
+    final fare = widget.data['fare']?.toString() ?? '0';
+    final distance = widget.data['distanceKm']?.toString() ?? widget.data['distance']?.toString() ?? '0';
+
+    String pickupAddr = 'Nearby Pickup';
+    if (widget.data['pickup'] is Map && widget.data['pickup']['address'] != null) {
+      pickupAddr = widget.data['pickup']['address'].toString();
+    } else if (widget.data['pickupAddress'] != null) {
+      pickupAddr = widget.data['pickupAddress'].toString();
+    }
+
+    String dropAddr = 'Destination';
+    if (widget.data['drop'] is Map && widget.data['drop']['address'] != null) {
+      dropAddr = widget.data['drop']['address'].toString();
+    } else if (widget.data['dropAddress'] != null) {
+      dropAddr = widget.data['dropAddress'].toString();
+    }
+
+    final double progress = _secondsRemaining / 15.0;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(color: Color(0x33000000), blurRadius: 20, offset: Offset(0, -6)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: AppColors.borderLight,
+              color: progress > 0.3 ? AppColors.primaryPink : AppColors.errorRed,
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    ScaleTransition(
+                      scale: Tween<double>(begin: 0.95, end: 1.1).animate(
+                        CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryPink.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.two_wheeler_rounded, color: AppColors.primaryPink, size: 28),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'NEW RIDE REQUEST!',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                              color: AppColors.primaryPink,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Text(
+                            'Female Passenger Nearby',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 12,
+                              color: AppColors.lightGray,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: progress > 0.3 ? AppColors.lightPink : AppColors.errorRed.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: progress > 0.3 ? AppColors.borderPink : AppColors.errorRed.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.timer_outlined,
+                            size: 16,
+                            color: progress > 0.3 ? AppColors.primaryPink : AppColors.errorRed,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${_secondsRemaining}s',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: progress > 0.3 ? AppColors.primaryPink : AppColors.errorRed,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1A1A2E), Color(0xFF2C2C4E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x20000000), blurRadius: 10, offset: Offset(0, 4)),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'ESTIMATED FARE',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white60,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '₹$fare',
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.successGreen,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        height: 36,
+                        width: 1,
+                        color: Colors.white24,
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'DISTANCE',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white60,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Icon(Icons.near_me_rounded, color: Colors.white, size: 18),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$distance km',
+                                style: const TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.inputBackground,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(top: 2),
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: AppColors.successGreen,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.my_location_rounded, color: Colors.white, size: 12),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'PICKUP LOCATION',
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.successGreen,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  pickupAddr,
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.darkText,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8, top: 4, bottom: 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            height: 18,
+                            width: 2,
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
+                      ),
+
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(top: 2),
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: AppColors.primaryPink,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.location_on_rounded, color: Colors.white, size: 12),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'DROP-OFF LOCATION',
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primaryPink,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  dropAddr,
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.darkText,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: OutlinedButton(
+                        onPressed: () => widget.onResponse(rideId, false),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 54),
+                          side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: const Text(
+                          'Decline',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.bodyText,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    Expanded(
+                      flex: 3,
+                      child: WooshGradientButton(
+                        text: 'ACCEPT RIDE',
+                        icon: Icons.check_circle_rounded,
+                        onPressed: () => widget.onResponse(rideId, true),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
