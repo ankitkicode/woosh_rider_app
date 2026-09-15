@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
@@ -240,7 +241,7 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> with SingleTick
                       radius: 20,
                       backgroundColor: AppColors.primaryPink.withValues(alpha: 0.1),
                       backgroundImage: profileState.profileImage != null && profileState.profileImage!.isNotEmpty
-                          ? NetworkImage(AppConstants.getFullImageUrl(profileState.profileImage))
+                          ? CachedNetworkImageProvider(AppConstants.getFullImageUrl(profileState.profileImage))
                           : null,
                       child: profileState.profileImage == null || profileState.profileImage!.isEmpty
                           ? const Icon(Icons.person, color: AppColors.primaryPink, size: 22)

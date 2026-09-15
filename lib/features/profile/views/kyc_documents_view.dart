@@ -1,8 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/app_colors.dart';
-import '../../../core/app_text_styles.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/widgets/woosh_gradient_button.dart';
 import '../view_models/profile_view_model.dart';
@@ -44,10 +44,16 @@ class KycDocumentsView extends ConsumerWidget {
               clipBehavior: Clip.none,
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
-                child: Image.network(
-                  imageUrl,
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Padding(
+                  placeholder: (context, url) => const SizedBox(
+                    height: 200,
+                    child: Center(
+                      child: CircularProgressIndicator(color: AppColors.primaryPink, strokeWidth: 2),
+                    ),
+                  ),
+                  errorWidget: (ctx, url, err) => const Padding(
                     padding: EdgeInsets.all(40),
                     child: Column(
                       children: [
@@ -310,12 +316,15 @@ class KycDocumentsView extends ConsumerWidget {
                                     child: Stack(
                                       alignment: Alignment.center,
                                       children: [
-                                        Image.network(
-                                          fullImageUrl,
+                                        CachedNetworkImage(
+                                          imageUrl: fullImageUrl,
                                           width: double.infinity,
                                           height: 160,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => const Column(
+                                          placeholder: (context, url) => const Center(
+                                            child: CircularProgressIndicator(color: AppColors.primaryPink, strokeWidth: 2),
+                                          ),
+                                          errorWidget: (ctx, url, err) => const Column(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
                                               Icon(Icons.broken_image_rounded, size: 36, color: AppColors.hintGray),

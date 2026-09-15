@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -348,7 +349,7 @@ class ProfileView extends ConsumerWidget {
                       CircleAvatar(
                         radius: 46,
                         backgroundColor: AppColors.primaryPink.withValues(alpha: 0.1),
-                        backgroundImage: fullImageUrl.isNotEmpty ? NetworkImage(fullImageUrl) : null,
+                        backgroundImage: fullImageUrl.isNotEmpty ? CachedNetworkImageProvider(fullImageUrl) : null,
                         child: fullImageUrl.isEmpty
                             ? const Icon(Icons.person, size: 48, color: AppColors.primaryPink)
                             : null,

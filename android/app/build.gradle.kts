@@ -10,7 +10,8 @@ import java.io.FileInputStream
 
 val keyPropertiesFile = rootProject.file("key.properties")
 val keyProperties = Properties()
-if (keyPropertiesFile.exists()) {
+val hasKeyProperties = keyPropertiesFile.exists()
+if (hasKeyProperties) {
     keyProperties.load(FileInputStream(keyPropertiesFile))
 }
 
@@ -38,10 +39,19 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keyProperties["keyAlias"] as String?
-            keyPassword = keyProperties["keyPassword"] as String?
-            storeFile = keyProperties["storeFile"]?.let { file(it as String) }
-            storePassword = keyProperties["storePassword"] as String?
+            val storeFilePath = keyProperties["storeFile"] as String?
+            if (hasKeyProperties && !storeFilePath.isNullOrEmpty()) {
+                keyAlias = keyProperties["keyAlias"] as String?
+                keyPassword = keyProperties["keyPassword"] as String?
+                storeFile = file(storeFilePath)
+                storePassword = keyProperties["storePassword"] as String?
+            } else {
+                val debugSigning = getByName("debug")
+                keyAlias = debugSigning.keyAlias
+                keyPassword = debugSigning.keyPassword
+                storeFile = debugSigning.storeFile
+                storePassword = debugSigning.storePassword
+            }
         }
     }
 
