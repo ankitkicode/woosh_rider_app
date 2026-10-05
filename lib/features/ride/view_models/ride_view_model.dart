@@ -116,6 +116,11 @@ class RideViewModel extends StateNotifier<RideState> {
     }
   }
 
+  void clearRide() {
+    _pollingTimer?.cancel();
+    state = const RideState();
+  }
+
   @override
   void dispose() {
     _pollingTimer?.cancel();

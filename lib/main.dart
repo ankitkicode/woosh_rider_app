@@ -4,8 +4,11 @@ import 'core/config/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'data/services/location_foreground_service.dart';
 
-void main() {
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   LocationForegroundService.init();
   runApp(
     const ProviderScope(

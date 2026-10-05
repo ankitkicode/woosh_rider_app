@@ -465,37 +465,46 @@ class _ActiveRideViewState extends ConsumerState<ActiveRideView> {
       );
     }
 
-    if (status == 'completed') {
+    if (status == 'completed' || status == 'payment_completed') {
       final ride = state.activeRide;
       final fare = ride?['finalFare'] ?? ride?['estimatedFare'] ?? 0;
+      final isPaid = ride?['paymentStatus'] == 'paid' || status == 'payment_completed';
       
       return Column(
         children: [
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.lightPink, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: isPaid ? AppColors.successGreen.withValues(alpha: 0.1) : AppColors.lightPink, 
+              borderRadius: BorderRadius.circular(12)
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total Fare to Collect', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                Text('₹$fare', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryPink)),
+                Text(isPaid ? 'Payment Received Online' : 'Total Fare to Collect', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                Text('₹$fare', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isPaid ? AppColors.successGreen : AppColors.primaryPink)),
               ],
             ),
           ),
           const SizedBox(height: 16),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.successGreen,
+              backgroundColor: isPaid ? AppColors.brandGradient.colors.first : AppColors.successGreen,
               minimumSize: const Size(double.infinity, 50),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () async {
-              final success = await vm.confirmCashPayment(widget.rideId);
-              if (success && mounted) {
+              if (isPaid) {
+                vm.clearRide();
                 context.go('/home');
+              } else {
+                final success = await vm.confirmCashPayment(widget.rideId);
+                if (success && mounted) {
+                  context.go('/home');
+                }
               }
             },
-            child: const Text("Cash Collected → Done", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            child: Text(isPaid ? "Complete Trip" : "Cash Collected → Done", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ],
       );
