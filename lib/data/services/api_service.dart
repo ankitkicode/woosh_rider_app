@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
-import 'package:dio_http_formatter/dio_http_formatter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../../core/constants/app_constants.dart';
 
 class ApiService {
@@ -23,13 +23,14 @@ class ApiService {
     // HTTP logger — only active in debug builds
     if (kDebugMode) {
       _dio.interceptors.add(
-        HttpFormatter(
-          includeRequest: true,
-          includeRequestHeaders: true,
-          includeRequestBody: true,
-          includeResponse: true,
-          includeResponseHeaders: true,
-          includeResponseBody: true,
+        PrettyDioLogger(
+          requestHeader: true,
+          requestBody: true,
+          responseBody: true,
+          responseHeader: false,
+          error: true,
+          compact: true,
+          maxWidth: 90,
         ),
       );
     }

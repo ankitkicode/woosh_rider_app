@@ -73,7 +73,11 @@ class _LoginViewState extends ConsumerState<LoginView> {
       });
       _startResendTimer();
     } catch (e) {
-      setState(() => _errorText = e.toString());
+      String message = e.toString();
+      if (message.startsWith('Exception: ')) {
+        message = message.substring(11);
+      }
+      setState(() => _errorText = message);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -353,14 +357,20 @@ class _LoginViewState extends ConsumerState<LoginView> {
         ),
         const SizedBox(height: 8),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
                 color: AppColors.inputBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.borderLight),
+                border: Border.all(
+                  color: _errorText != null ? AppColors.errorRed : AppColors.borderLight,
+                  width: _errorText != null ? 1.5 : 1.0,
+                ),
               ),
+              alignment: Alignment.center,
               child: const Text(
                 '🇮🇳 +91',
                 style: TextStyle(
@@ -380,17 +390,71 @@ class _LoginViewState extends ConsumerState<LoginView> {
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 style: const TextStyle(fontSize: 16, fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: AppColors.darkText),
                 onChanged: (_) {
-                  if (_errorText != null) setState(() => _errorText = null);
+                  setState(() {
+                    if (_errorText != null) _errorText = null;
+                  });
                 },
                 decoration: InputDecoration(
                   hintText: '98765 43210',
                   counterText: '',
-                  errorText: _errorText,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: _errorText != null ? AppColors.errorRed : AppColors.borderLight,
+                      width: _errorText != null ? 1.5 : 1.0,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: _errorText != null ? AppColors.errorRed : AppColors.primaryPink,
+                      width: 1.5,
+                    ),
+                  ),
+                  suffixIcon: _phoneController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.cancel_rounded, size: 18, color: AppColors.lightGray),
+                          onPressed: () {
+                            _phoneController.clear();
+                            setState(() => _errorText = null);
+                          },
+                        )
+                      : null,
                 ),
               ),
             ),
           ],
         ),
+
+        if (_errorText != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.errorRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.errorRed.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, color: AppColors.errorRed, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _errorText!,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.errorRed,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
 
         const SizedBox(height: 8),
         const Row(
