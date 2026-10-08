@@ -150,7 +150,11 @@ class KycViewModel extends StateNotifier<KycState> {
   Future<void> savePersonalInfo() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      await _repo.updateProfile(city: state.city, dateOfBirth: state.dateOfBirth);
+      await _repo.updateProfile(
+        name: state.name,
+        city: state.city,
+        dateOfBirth: state.dateOfBirth,
+      );
       state = state.copyWith(isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());

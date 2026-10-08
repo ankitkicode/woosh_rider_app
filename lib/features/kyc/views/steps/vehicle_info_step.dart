@@ -54,7 +54,16 @@ class _VehicleInfoStepState extends ConsumerState<VehicleInfoStep> {
     try {
       await ref.read(kycViewModelProvider.notifier).saveVehicleInfo();
       ref.read(kycViewModelProvider.notifier).nextStep();
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override

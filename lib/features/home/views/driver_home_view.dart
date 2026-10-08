@@ -13,6 +13,7 @@ import '../../profile/view_models/profile_view_model.dart';
 import '../../../data/services/socket_service.dart';
 import '../../../data/services/storage_service.dart';
 import '../../../data/services/location_foreground_service.dart';
+import '../view_models/city_view_model.dart';
 import 'package:geolocator/geolocator.dart';
 
 final isOnlineProvider = StateProvider<bool>((ref) => false);
@@ -43,6 +44,9 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> with SingleTick
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(kycViewModelProvider.notifier).loadStatus();
       ref.read(profileViewModelProvider.notifier).loadProfile();
+      ref.read(cityViewModelProvider.notifier).fetchCities().then((_) {
+        ref.read(cityViewModelProvider.notifier).checkCurrentLocationServiceAvailability();
+      });
     });
   }
 
@@ -143,6 +147,79 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> with SingleTick
     setState(() => _loadingEarnings = false);
   }
 
+  void _showServiceUnavailableDialog(BuildContext context) {
+    const message = 'In this area service is not available. Coming soon.';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.location_off_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppColors.errorRed,
+        duration: Duration(seconds: 4),
+      ),
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.wrong_location_rounded, color: AppColors.errorRed, size: 28),
+            SizedBox(width: 10),
+            Text(
+              'Service Unavailable',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: AppColors.darkText,
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          message,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 14,
+            color: AppColors.bodyText,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primaryPink,
+            ),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _toggleOnline(bool current) async {
     final kycStatus = ref.read(kycViewModelProvider).kycStatus;
     if (kycStatus != 'approved') {
@@ -158,6 +235,44 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> with SingleTick
     try {
       final repo = ref.read(riderRepositoryProvider);
       final newStatus = !current;
+
+      if (newStatus) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => const Center(
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: AppColors.primaryPink),
+                    SizedBox(height: 16),
+                    Text(
+                      'Checking service area...',
+                      style: TextStyle(fontFamily: 'Poppins', fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final cityNotifier = ref.read(cityViewModelProvider.notifier);
+        final isAvailable = await cityNotifier.checkCurrentLocationServiceAvailability();
+
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
+
+        if (!isAvailable) {
+          if (mounted) {
+            _showServiceUnavailableDialog(context);
+          }
+          return;
+        }
+      }
+
       await repo.toggleOnlineStatus(isOnline: newStatus);
       ref.read(isOnlineProvider.notifier).state = newStatus;
 
@@ -215,6 +330,7 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> with SingleTick
     final isOnline = ref.watch(isOnlineProvider);
     final kycState = ref.watch(kycViewModelProvider);
     final profileState = ref.watch(profileViewModelProvider);
+    final cityState = ref.watch(cityViewModelProvider);
     final isKycApproved = kycState.kycStatus == 'approved';
     final riderName = profileState.name.isNotEmpty ? profileState.name : 'Rider';
 
@@ -339,12 +455,43 @@ class _DriverHomeViewState extends ConsumerState<DriverHomeView> with SingleTick
                 onRefresh: () async {
                   await _loadEarnings();
                   ref.read(profileViewModelProvider.notifier).loadProfile();
+                  await ref.read(cityViewModelProvider.notifier).fetchCities();
+                  await ref.read(cityViewModelProvider.notifier).checkCurrentLocationServiceAvailability();
                 },
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
+                      // Service Area Unavailable Banner
+                      if (cityState.isCurrentLocationInService == false)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: AppColors.errorRed.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.errorRed.withValues(alpha: 0.4)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.location_off_rounded, color: AppColors.errorRed, size: 24),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'In this area service is not available. Coming soon.',
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    color: AppColors.errorRed,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
                       // KYC Pending Banner
                       if (kycState.kycStatus != null && !isKycApproved)
                         Container(
@@ -759,8 +906,11 @@ class _StatCard extends StatelessWidget {
 }
 
 void _showDailyChecklistDialog(BuildContext context, WidgetRef ref) {
-  showDialog(
+  showModalBottomSheet(
     context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
     builder: (context) => const _DailyChecklistDialog(),
   );
 }
@@ -773,18 +923,53 @@ class _DailyChecklistDialog extends ConsumerStatefulWidget {
 }
 
 class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
-  bool helmet = false;
-  bool firstAid = false;
-  bool sanitary = false;
-  bool battery = false;
+  bool _helmet = false;
+  bool _firstAid = false;
+  bool _sanitary = false;
+  bool _battery = false;
   bool _isLoading = false;
 
+  int get _completedCount {
+    int count = 0;
+    if (_helmet) count++;
+    if (_firstAid) count++;
+    if (_sanitary) count++;
+    if (_battery) count++;
+    return count;
+  }
+
+  bool get _allChecked => _completedCount == 4;
+
+  void _toggleAll() {
+    HapticFeedback.lightImpact();
+    final targetState = !_allChecked;
+    setState(() {
+      _helmet = targetState;
+      _firstAid = targetState;
+      _sanitary = targetState;
+      _battery = targetState;
+    });
+  }
+
   Future<void> _submit() async {
-    if (!helmet || !firstAid || !sanitary || !battery) {
+    if (!_allChecked) {
+      HapticFeedback.vibrate();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please check all safety items to proceed.'),
+          content: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Please verify all safety checklist items before submitting.',
+                  style: TextStyle(fontFamily: 'Poppins', fontSize: 13),
+                ),
+              ),
+            ],
+          ),
           backgroundColor: AppColors.errorRed,
+          duration: Duration(seconds: 3),
         ),
       );
       return;
@@ -794,10 +979,10 @@ class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
     try {
       final repo = ref.read(riderRepositoryProvider);
       await repo.submitSafetyChecklist(
-        helmetAvailable: helmet,
-        firstAidKitAvailable: firstAid,
-        sanitaryPadsAvailable: sanitary,
-        phoneBatteryCheck: battery,
+        helmetAvailable: _helmet,
+        firstAidKitAvailable: _firstAid,
+        sanitaryPadsAvailable: _sanitary,
+        phoneBatteryCheck: _battery,
         faceVerified: true,
       );
       if (mounted) {
@@ -806,15 +991,30 @@ class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Safety checklist updated!'),
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Daily safety checklist completed successfully!',
+                    style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
             backgroundColor: AppColors.successGreen,
+            duration: Duration(seconds: 3),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.errorRed),
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: AppColors.errorRed,
+          ),
         );
       }
     } finally {
@@ -824,103 +1024,377 @@ class _DailyChecklistDialogState extends ConsumerState<_DailyChecklistDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: const Color(0xFFFCEEED),
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: Container(
-        width: MediaQuery.of(context).size.width * 0.85,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Daily Safety\nChecklist',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                height: 1.2,
-                color: AppColors.primaryPink,
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildChecklistItem(
-              title: '⛑️ Helmet Available',
-              value: helmet,
-              onChanged: (v) => setState(() => helmet = v ?? false),
-            ),
-            const SizedBox(height: 12),
-            _buildChecklistItem(
-              title: '🩺 First Aid Kit',
-              value: firstAid,
-              onChanged: (v) => setState(() => firstAid = v ?? false),
-            ),
-            const SizedBox(height: 12),
-            _buildChecklistItem(
-              title: '🩸 Sanitary Pads',
-              value: sanitary,
-              onChanged: (v) => setState(() => sanitary = v ?? false),
-            ),
-            const SizedBox(height: 12),
-            _buildChecklistItem(
-              title: '🔋 Phone Battery Check',
-              value: battery,
-              onChanged: (v) => setState(() => battery = v ?? false),
-            ),
-            const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+    final double progress = _completedCount / 4.0;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x26000000),
+            blurRadius: 20,
+            offset: Offset(0, -6),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextButton(
-                  onPressed: _isLoading ? null : () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(fontFamily: 'Poppins', color: Colors.black54, fontSize: 15)),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryPink,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                // Top Handle Indicator
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 5,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    onPressed: _isLoading ? null : _submit,
-                    child: _isLoading
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('Submit', style: TextStyle(fontFamily: 'Poppins', color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
+                ),
+
+                // Header Row
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryPink.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.health_and_safety_rounded,
+                        color: AppColors.primaryPink,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Daily Safety Checklist',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.darkText,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Verify mandatory rider equipment before taking rides',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.close_rounded, color: Colors.grey.shade500),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // Progress Bar and Select All Section
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.inputBackground,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Completion: ',
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _allChecked
+                                      ? AppColors.successGreen.withValues(alpha: 0.15)
+                                      : AppColors.primaryPink.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '$_completedCount / 4',
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: _allChecked ? AppColors.successGreen : AppColors.primaryPink,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          InkWell(
+                            onTap: _toggleAll,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _allChecked ? Icons.deselect_rounded : Icons.select_all_rounded,
+                                    size: 16,
+                                    color: AppColors.primaryPink,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _allChecked ? 'Deselect All' : 'Select All',
+                                    style: const TextStyle(
+                                      fontFamily: 'Poppins',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.primaryPink,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 6,
+                          backgroundColor: Colors.grey.shade200,
+                          color: _allChecked ? AppColors.successGreen : AppColors.primaryPink,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Interactive Item Cards
+                _ChecklistTile(
+                  icon: Icons.sports_motorsports_rounded,
+                  iconColor: const Color(0xFFE91E63),
+                  title: 'Rider & Passenger Helmet',
+                  subtitle: 'Clean helmet ready for passenger safety',
+                  value: _helmet,
+                  onChanged: (v) {
+                    HapticFeedback.lightImpact();
+                    setState(() => _helmet = v);
+                  },
+                ),
+                const SizedBox(height: 10),
+
+                _ChecklistTile(
+                  icon: Icons.medical_services_rounded,
+                  iconColor: const Color(0xFFE53935),
+                  title: 'First Aid Kit',
+                  subtitle: 'Basic medical supplies stored on vehicle',
+                  value: _firstAid,
+                  onChanged: (v) {
+                    HapticFeedback.lightImpact();
+                    setState(() => _firstAid = v);
+                  },
+                ),
+                const SizedBox(height: 10),
+
+                _ChecklistTile(
+                  icon: Icons.clean_hands_rounded,
+                  iconColor: const Color(0xFF9C27B0),
+                  title: 'Sanitary Pads',
+                  subtitle: 'Hygiene products available for riders',
+                  value: _sanitary,
+                  onChanged: (v) {
+                    HapticFeedback.lightImpact();
+                    setState(() => _sanitary = v);
+                  },
+                ),
+                const SizedBox(height: 10),
+
+                _ChecklistTile(
+                  icon: Icons.battery_charging_full_rounded,
+                  iconColor: const Color(0xFF00C853),
+                  title: 'Phone Battery Check',
+                  subtitle: 'Sufficient phone battery (>20%) for navigation',
+                  value: _battery,
+                  onChanged: (v) {
+                    HapticFeedback.lightImpact();
+                    setState(() => _battery = v);
+                  },
+                ),
+
+                const SizedBox(height: 24),
+
+                // Submit Button
+                WooshGradientButton(
+                  text: 'SUBMIT SAFETY CHECKLIST',
+                  icon: Icons.check_circle_outline_rounded,
+                  isLoading: _isLoading,
+                  onPressed: _submit,
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildChecklistItem({required String title, required bool value, required ValueChanged<bool?> onChanged}) {
-    return Theme(
-      data: Theme.of(context).copyWith(
-        unselectedWidgetColor: Colors.black54,
-      ),
-      child: CheckboxListTile(
-        contentPadding: EdgeInsets.zero,
-        visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-        controlAffinity: ListTileControlAffinity.trailing,
-        activeColor: AppColors.primaryPink,
-        checkColor: Colors.white,
-        title: Text(
-          title,
-          style: const TextStyle(fontFamily: 'Poppins', fontSize: 15, color: Colors.black87),
+class _ChecklistTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _ChecklistTile({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: value ? iconColor.withValues(alpha: 0.06) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: value ? iconColor.withValues(alpha: 0.6) : AppColors.borderLight,
+              width: value ? 1.5 : 1.0,
+            ),
+            boxShadow: [
+              if (value)
+                BoxShadow(
+                  color: iconColor.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                )
+              else
+                const BoxShadow(
+                  color: Color(0x05000000),
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Icon Badge
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: value ? iconColor.withValues(alpha: 0.15) : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: value ? iconColor : Colors.grey.shade600,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+
+              // Title and Subtitle
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: value ? AppColors.darkText : AppColors.bodyText,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              // Check Mark Badge
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: value ? iconColor : Colors.transparent,
+                  border: Border.all(
+                    color: value ? iconColor : Colors.grey.shade400,
+                    width: 2,
+                  ),
+                ),
+                child: value
+                    ? const Icon(
+                        Icons.check_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      )
+                    : null,
+              ),
+            ],
+          ),
         ),
-        value: value,
-        onChanged: onChanged,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        side: const BorderSide(color: Colors.black54, width: 1.5),
       ),
     );
   }

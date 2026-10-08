@@ -46,8 +46,8 @@ class _KycViewState extends ConsumerState<KycView> {
       );
     }
 
-    // While status is still fetching or null
-    if (state.isLoading || state.kycStatus == null) {
+    // While status is initial loading or null
+    if (state.kycStatus == null) {
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(color: AppColors.primaryPink),

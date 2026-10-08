@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../core/app_colors.dart';
 import '../../../../shared/widgets/woosh_gradient_button.dart';
 import '../../../../shared/widgets/document_upload_card.dart';
@@ -114,7 +113,7 @@ class DocumentsStep extends ConsumerWidget {
       Padding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
         child: WooshGradientButton(
-          text: requiredDone ? 'Continue to Selfie Verification' : 'Upload Required Documents First',
+          text: requiredDone ? 'Continue to Selfie Verification' : 'Upload Documents',
           isLoading: state.isSubmitting,
           onPressed: requiredDone ? () => ref.read(kycViewModelProvider.notifier).nextStep() : null,
         ),

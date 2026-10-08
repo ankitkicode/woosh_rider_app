@@ -74,21 +74,21 @@ class DocumentUploadCard extends StatelessWidget {
             title: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Poppins', color: AppColors.darkText),
+                  child: Text.rich(
+                    TextSpan(
+                      text: title,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Poppins', color: AppColors.darkText),
+                      children: [
+                        if (isRequired)
+                          const TextSpan(
+                            text: ' *',
+                            style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-                if (isRequired)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.errorRed.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text('Required', style: TextStyle(fontSize: 10, color: AppColors.errorRed, fontWeight: FontWeight.w600, fontFamily: 'Poppins')),
-                  )
-                else
+                if (!isRequired)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(

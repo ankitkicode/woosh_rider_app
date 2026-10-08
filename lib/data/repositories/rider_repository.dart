@@ -2,10 +2,28 @@ import 'package:dio/dio.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../models/auth_model.dart';
+import '../models/city_model.dart';
 
 class RiderRepository {
   final ApiService _api;
   RiderRepository(this._api);
+
+  /// Get list of active cities and service areas
+  Future<List<CityModel>> getCities() async {
+    try {
+      final response = await _api.get('/cities');
+      final data = ApiService.parseData(response);
+      if (data is List) {
+        return data
+            .whereType<Map<String, dynamic>>()
+            .map((e) => CityModel.fromJson(e))
+            .toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      throw ApiService.parseError(e);
+    }
+  }
 
   /// Get KYC status + profile details
   Future<KycStatusModel> getKycStatus() async {

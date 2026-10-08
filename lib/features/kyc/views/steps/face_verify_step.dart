@@ -124,7 +124,7 @@ class _FaceVerifyStepState extends ConsumerState<FaceVerifyStep> {
         const SizedBox(height: 32),
 
         WooshGradientButton(
-          text: hasSelfie ? 'Submit Documents & Selfie' : 'Take Selfie First',
+          text: hasSelfie ? 'Submit Documents & Selfie' : 'Take Selfie',
           isLoading: _isSubmitting,
           onPressed: hasSelfie ? _submitKyc : null,
         ),

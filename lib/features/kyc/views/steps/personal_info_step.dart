@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../core/app_colors.dart';
 import '../../../../core/app_text_styles.dart';
 import '../../../../shared/widgets/woosh_gradient_button.dart';
@@ -19,6 +18,7 @@ class _PersonalInfoStepState extends ConsumerState<PersonalInfoStep> {
   final _cityCtrl = TextEditingController();
   String? _nameError;
   String? _cityError;
+  String? _dobError;
   String? _selectedDob;
 
   @override
@@ -49,7 +49,10 @@ class _PersonalInfoStepState extends ConsumerState<PersonalInfoStep> {
       ),
     );
     if (picked != null) {
-      setState(() => _selectedDob = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}');
+      setState(() {
+        _selectedDob = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+        _dobError = null;
+      });
     }
   }
 
@@ -59,6 +62,8 @@ class _PersonalInfoStepState extends ConsumerState<PersonalInfoStep> {
     else setState(() => _nameError = null);
     if (_cityCtrl.text.trim().isEmpty) { setState(() => _cityError = 'Please enter your city'); valid = false; }
     else setState(() => _cityError = null);
+    if (_selectedDob == null || _selectedDob!.isEmpty) { setState(() => _dobError = 'Please select your date of birth'); valid = false; }
+    else setState(() => _dobError = null);
     return valid;
   }
 
@@ -73,7 +78,14 @@ class _PersonalInfoStepState extends ConsumerState<PersonalInfoStep> {
       await ref.read(kycViewModelProvider.notifier).savePersonalInfo();
       ref.read(kycViewModelProvider.notifier).nextStep();
     } catch (e) {
-      // error shown in state
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -106,7 +118,11 @@ class _PersonalInfoStepState extends ConsumerState<PersonalInfoStep> {
               decoration: BoxDecoration(
                 color: AppColors.inputBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _selectedDob != null ? AppColors.successGreen : AppColors.borderLight),
+                border: Border.all(
+                  color: _dobError != null
+                      ? Colors.red
+                      : (_selectedDob != null ? AppColors.successGreen : AppColors.borderLight),
+                ),
               ),
               child: Row(children: [
                 const Icon(Icons.calendar_today_outlined, color: AppColors.primaryPink, size: 20),
@@ -117,6 +133,13 @@ class _PersonalInfoStepState extends ConsumerState<PersonalInfoStep> {
               ]),
             ),
           ),
+          if (_dobError != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _dobError!,
+              style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, color: Colors.red),
+            ),
+          ],
         ]),
 
         const SizedBox(height: 40),
